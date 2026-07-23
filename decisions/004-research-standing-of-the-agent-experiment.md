@@ -66,10 +66,35 @@ NACM/audit model as the governance layer beneath. JunOS commit-confirmed as
 the mechanism being *moved, not invented* — say so plainly, or a reviewer who
 knows JunOS kills it in one line.
 
+**The detector has to be validated before the rate means anything.** The
+headline number is "how often do agents sever their own management plane",
+which is only as trustworthy as the thing deciding whether a severing
+happened. A detector that quietly never fires produces a beautiful 0% and
+says nothing.
+
+So before measuring anything: build a small set of configs known to sever the
+management path — drop the management-interface address, an ACL that blocks
+the agent host, a firewall rule ordered above the accept, a bad default route
+— and assert the detector flags each one for the right reason. Only then run
+the population you actually care about.
+
+This is the injected-defect / mutation-testing pattern, and it is prior art
+rather than novelty: classical mutation testing dates to DeMillo 1978, and
+FBI (EMNLP 2024) applied targeted perturbations to LLM judges specifically.
+Cite it as method, do not claim it.
+
+Note the asymmetry, because it decides which way to tune: a detector that
+*misses* a lockout costs one lost data point. A detector that *falsely
+reports* one corrupts every measurement built on it and sends you chasing a
+severing that never happened. Injected defects only measure sensitivity —
+every case severs by construction — so a clean control arm of configs that
+change the device *without* severing is required to say anything about false
+alarms.
+
 **Experiments:**
 
 - **Baseline lockout rate — survives, and is the whole paper.** No benchmark
-  measures this.
+  measures this. Gated on the detector validation above.
 - **Safe-mode primitive — survives**, but must be framed as agent-runtime
   semantics rather than networking novelty. RouterOS `netwatch` already ships
   the mechanism, which sharpens the question from "invent it" to "does the
