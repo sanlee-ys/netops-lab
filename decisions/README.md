@@ -1,0 +1,22 @@
+# Architecture Decision Log
+
+Decisions are recorded here as they are made. Each ADR captures the context,
+the decision, and the consequences — including trade-offs accepted.
+
+| # | Title | Status |
+|---|-------|--------|
+| [001](001-hardware-substrate-scope.md) | Hardware substrate, not a simulator — and what's explicitly out of scope | Accepted |
+| [002](002-keep-the-hex-decline-rb5009.md) | Keep the hEX, decline the RB5009 upgrade | Accepted |
+| [003](003-router-container-incapable.md) | The router is container-incapable by design — verified, not assumed | Accepted |
+| [004](004-research-standing-of-the-agent-experiment.md) | Research standing of the agent experiment: what's claimable and what isn't | Accepted |
+
+## Format
+
+Each ADR follows this structure:
+
+- **Context** — what problem or decision point prompted this
+- **Decision** — what was chosen
+- **Consequences** — what the decision enables, what it costs, what it forecloses
+- **Alternatives Considered** — what was ruled out and why
+
+Statuses: `Proposed` → `Accepted` → `Superseded` / `Deprecated`
