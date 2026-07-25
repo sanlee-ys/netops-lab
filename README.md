@@ -41,20 +41,13 @@ What the Pi build actually used, recorded after the fact (2026-07-25).
 | USB flash drive, 64GB | Install medium, then rescue image — see below |
 | Pi 5 PSU, 27W USB-C PD | Power |
 
-**No microSD was needed.** The Pi booted from the USB stick, the EEPROM was
-updated from that running system, and `rpi-clone` copied it to the NVMe. The
-stick is kept as a known-good rescue image for this machine — worth more here
-than a spare drive, in a lab whose premise is out-of-band recovery.
+**No microSD was involved.** The Pi installed from the USB stick, which is
+kept afterward as a known-good rescue image for this machine — worth more
+here than a spare drive, in a lab whose premise is out-of-band recovery.
 
-Two things that would have cost an evening if hit blind:
-
-- **The factory EEPROM was a year stale** (June 2025 against a May 2026
-  release) and predates working NVMe boot. Update it *before* imaging the
-  drive, so a boot failure has one possible cause instead of two.
-- **Use the maintained `rpi-clone` fork.** The original writes a wrong path
-  into `cmdline.txt` on Pi 5 and the clone won't boot; the fork fixes the
-  `cmdline.txt` and `/etc/fstab` PARTUUID rewrites, which is the whole
-  fiddly part of cloning.
+How the bring-up actually went, including the two things that would have cost
+an evening if hit blind, is logged in
+[docs/bring-up-notes.md](docs/bring-up-notes.md).
 
 ## Topology
 
