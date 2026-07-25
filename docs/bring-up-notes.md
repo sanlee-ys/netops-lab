@@ -11,6 +11,20 @@ needs an **elevated** shell.
 
 ---
 
+## Quick checklist — Pi won't see or boot the NVMe
+
+1. Does `lsblk` list `nvme0n1` at all? No → reseat the PCIe ribbon at **both**
+   ends before suspecting the drive. See
+   [drive not detected](#if-the-drive-doesnt-appear-suspect-the-ribbon-first).
+2. Drive visible but won't boot from it? Check the EEPROM date first — a
+   factory bootloader can predate working NVMe boot. See
+   [mandatory pre-step](#mandatory-pre-step-update-the-eeprom-before-imaging-the-nvme).
+3. Cloned drive boots to a kernel panic or initramfs prompt? Wrong PARTUUID
+   in `cmdline.txt`. See
+   [clone with the maintained fork](#clone-with-the-maintained-rpi-clone-fork-not-the-original).
+
+---
+
 ## Quick checklist — lab link won't come up
 
 1. Did you pin the lab NIC's interface metric *before* cabling? See
@@ -22,6 +36,140 @@ needs an **elevated** shell.
    NIC. It is the known-good fix here and is the most likely thing to come
    back, since a driver update can reset adapter defaults. See
    [root cause](#root-cause-energy-efficient-ethernet-8023az).
+
+---
+
+## 2026-07-25 — Pi 5 NVMe bring-up
+
+**Hardware:** Raspberry Pi 5 8GB (`goguma`) in an Argon NEO 5 M.2 NVMe case,
+Ranxiana NVMe SSD M.2 2280 (238.5G usable). Brought up **headless** — no
+monitor, no keyboard, no microSD at any point; wifi and SSH were preset with
+Raspberry Pi Imager and the install ran from a USB stick.
+
+### No microSD is required
+
+The common instruction is "boot from SD, then move to NVMe." A USB stick works
+in that role and is the better choice here: flash Raspberry Pi OS Lite to it,
+boot the Pi from it, update the EEPROM from that running system, then clone to
+the NVMe. The stick then becomes a known-good rescue image for the machine
+rather than a card that gets wiped and forgotten.
+
+Set **hostname, username/password, wifi, and SSH in Imager before writing.**
+In Imager's customization these live on two different tabs — hostname,
+username/password and wifi on **General**, SSH on **Services** — and enabling
+SSH without setting a username produces an image with no account on it, which
+cannot be logged into headlessly at all. That mistake costs a re-flash.
+
+### Argon NEO 5: the case is the carrier
+
+There is no separate M.2 HAT and no Active Cooler in this build — the case is
+the enclosure *and* the NVMe carrier, and it ships its own PCIe ribbon and
+screws. Two constraints that are easy to miss:
+
+- **Single-sided SSDs only.** 2280 length fits; NAND on both faces does not.
+- **Ribbon orientation is not symmetric** — copper contacts face **up** on the
+  carrier-board end. Backwards means the drive simply doesn't enumerate, which
+  is indistinguishable from a dead drive.
+
+Assemble and **power on before driving the case screws.** The screws are the
+last step in Argon's own instructions, so verifying `lsblk` first costs
+nothing and saves a full teardown if the ribbon is wrong.
+
+### If the drive doesn't appear, suspect the ribbon first
+
+```bash
+lsblk
+ls -l /dev/nvme* 2>/dev/null || echo "no nvme device"
+```
+
+A healthy result lists `nvme0n1` as a disk. Absent means reseat the ribbon at
+both ends — that is the cause the large majority of the time, ahead of the
+drive itself.
+
+### Mandatory pre-step: update the EEPROM before imaging the NVMe
+
+This Pi shipped with a **June 2025** bootloader against a **May 2026** release.
+An EEPROM that old can predate working NVMe boot entirely, so a drive that
+enumerates fine under Linux still won't boot.
+
+Do this *before* writing anything to the NVMe. Otherwise a boot failure has two
+candidate causes — bad clone or incapable bootloader — instead of one.
+
+```bash
+sudo rpi-eeprom-update          # check
+sudo rpi-eeprom-update -a       # stage the update
+sudo reboot
+```
+
+`WARNING: SPI device /dev/spidev10.0 not found` during the update is **not** a
+fault. It means the EEPROM can't be flashed live, so the tool falls back to
+staging `pieeprom.upd` + `recovery.bin` in `/boot/firmware` and applying them at
+next boot. That is the normal path. Expect a **double boot** — the recovery
+image flashes, then the Pi reboots again — so allow longer than usual before
+SSH comes back.
+
+Verify:
+
+```bash
+sudo rpi-eeprom-update          # want CURRENT == LATEST
+vcgencmd bootloader_version
+```
+
+Do not interrupt power during an EEPROM write. This is firmware on the Pi
+itself, not data on a disk.
+
+### Clone with the maintained `rpi-clone` fork, not the original
+
+The original (`billw2`) writes a wrong path into `cmdline.txt` on Pi 5 and the
+cloned drive won't boot. The maintained fork
+([geerlingguy/rpi-clone](https://github.com/geerlingguy/rpi-clone)) fixes it.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/geerlingguy/rpi-clone/master/install -o /tmp/rpi-clone-install
+less /tmp/rpi-clone-install      # read it before sudo
+sudo bash /tmp/rpi-clone-install
+sudo rpi-clone nvme0n1
+```
+
+It clones the **currently booted** disk to the target. Give the destination a
+distinct filesystem label (`goguma-nvme`) — post-clone both disks are byte-identical
+including the source's `rootfs` label, and two identically-labelled filesystems on
+one machine is exactly the ambiguity you don't want if anything ever mounts by label.
+
+The two lines that confirm it did the load-bearing work:
+
+```
+Editing /mnt/clone/boot/firmware/cmdline.txt PARTUUID to use <id>
+Editing /mnt/clone/etc/fstab PARTUUID to use <id>
+```
+
+That pair — plus "Changing destination Disk ID", which stops the two disks
+colliding on PARTUUID — is the entire fiddly part of cloning a Pi, and the
+exact thing a hand-rolled `rsync` clone gets wrong.
+
+**Do not remove the USB stick while this runs.** It is both the running root
+filesystem and the source of the copy.
+
+### Not a fault: "unrecognised disk label"
+
+`rpi-clone` opens with `Error: /dev/nvme0n1: unrecognised disk label` against a
+blank drive. That is `parted` reporting no partition table yet — expected on a
+virgin disk, not something to act on. Recorded here so it isn't chased as a
+cause later.
+
+### Finish: boot order, then verify
+
+`sudo raspi-config` → **Advanced Options** → **Boot Order** → **NVMe/USB Boot**.
+Then `sudo shutdown -h now`, wait for solid red (halted — the Pi 5 sits in
+standby rather than powering fully off), pull the USB stick, and press the
+power button.
+
+```bash
+findmnt /        # want /dev/nvme0n1p2
+lsblk            # want no sda at all
+```
+
+Elapsed, for calibration: clone of a 6.7G-used system took **2m12s** over PCIe.
 
 ---
 
