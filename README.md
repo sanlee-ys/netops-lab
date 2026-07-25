@@ -29,6 +29,33 @@ the Pi is the dual-homed agent host, and hosting the agent on the device it
 might sever would defeat the lockout observation. See
 [decisions/003](decisions/003-on-router-containers.md).
 
+### Bring-up kit
+
+What the Pi build actually used, recorded after the fact (2026-07-25).
+
+| Item | Role |
+|---|---|
+| Argon NEO 5 M.2 NVMe case | Enclosure *and* NVMe carrier — replaces a separate M.2 HAT; ships its own PCIe ribbon and screws. Single-sided SSDs only. |
+| Ranxiana NVMe SSD, M.2 2280 | Root filesystem — enumerates as `nvme0n1`, 238.5G usable |
+| Precision Phillips PH0 | Case and carrier screws (Greenworks 6pc precision set) |
+| USB flash drive, 64GB | Install medium, then rescue image — see below |
+| Pi 5 PSU, 27W USB-C PD | Power |
+
+**No microSD was needed.** The Pi booted from the USB stick, the EEPROM was
+updated from that running system, and `rpi-clone` copied it to the NVMe. The
+stick is kept as a known-good rescue image for this machine — worth more here
+than a spare drive, in a lab whose premise is out-of-band recovery.
+
+Two things that would have cost an evening if hit blind:
+
+- **The factory EEPROM was a year stale** (June 2025 against a May 2026
+  release) and predates working NVMe boot. Update it *before* imaging the
+  drive, so a boot failure has one possible cause instead of two.
+- **Use the maintained `rpi-clone` fork.** The original writes a wrong path
+  into `cmdline.txt` on Pi 5 and the clone won't boot; the fork fixes the
+  `cmdline.txt` and `/etc/fstab` PARTUUID rewrites, which is the whole
+  fiddly part of cloning.
+
 ## Topology
 
 ```mermaid
@@ -98,9 +125,12 @@ writeup. Everything below item 1 waits until item 1 actually ships.
 
 ## Status
 
-Hardware ordered 2026-07-22, all in hand 2026-07-25. First bring-up session
-that same day got the PC onto the router's segment; ZTP (roadmap item 1) is
-not started.
+Hardware ordered 2026-07-22, all in hand 2026-07-25.
+
+Two bring-up sessions that day. The PC is on the router's segment, and the Pi
+(`goguma`) is built — booting from NVMe, headless on wifi, EEPROM current.
+That closes the hardware substrate gate on everything below. ZTP (roadmap
+item 1) is not started.
 
 ## Bring-up notes
 
