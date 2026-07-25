@@ -17,14 +17,17 @@ rebuild.
 
 | Device | Role |
 |---|---|
-| MikroTik hEX (RouterOS, MMIPS) | device under test |
-| Raspberry Pi 5, 8GB, NVMe boot | agent host |
+| MikroTik hEX refresh, E50UG (RouterOS 7, ARM 32-bit, 512MB RAM, 128MB NAND) | device under test |
+| Raspberry Pi 5, 8GB, NVMe boot | ZTP / Netinstall host, then agent host |
 
 The router is deliberately the cheap end of MikroTik's lineup — see
 [decisions/002](decisions/002-keep-the-hex-decline-rb5009.md) for why a
-pricier router was considered and declined. It's also container-incapable by
-design (MMIPS, 16MB flash); all container workloads (FRR, syslog viewer,
-future agent runtime) live on the Pi, never the router.
+pricier router was considered and declined. It *can* run RouterOS containers
+(ARM, though only 128MB of NAND), but all container workloads — FRR, syslog
+viewer, future agent runtime — live on the Pi by design, never the router:
+the Pi is the dual-homed agent host, and hosting the agent on the device it
+might sever would defeat the lockout observation. See
+[decisions/003](decisions/003-on-router-containers.md).
 
 ## Topology
 
@@ -40,7 +43,7 @@ graph TB
 
     PC["San's PC"] -- ethernet --> HEX
     PC -- wifi --> HR
-    PI["Raspberry Pi 5<br/>(agent host)"] -- ethernet --> HEX
+    PI["Raspberry Pi 5<br/>(ZTP host, then agent host)"] -- ethernet to ether1 --> HEX
     PI -- wifi --> HR
 ```
 
@@ -48,6 +51,13 @@ The Pi is deliberately dual-homed: one interface on the isolated lab segment,
 one on the house wifi. When an agent severs the Pi's lab-segment link, the
 wifi session survives — so the lockout is observable from inside the agent's
 own host, instead of requiring physical access to recover.
+
+The Pi's single NIC lands on **ether1** because that's the port the hEX
+netinstalls from — which puts the Pi on what the stock configuration treats
+as the WAN side, behind a firewall that drops input from WAN. Opening
+management for the Pi on ether1 is therefore part of the provisioning script
+itself, and the same surface the lockout experiment later attacks. See
+[decisions/005](decisions/005-pi-as-ztp-host.md).
 
 ## Why hardware, not a simulator
 
@@ -62,7 +72,10 @@ parts that are hardest to get right without hands-on practice. See
 Sequenced, not exhaustive — this is what's ordered so far. Backlog below is
 real but unscheduled.
 
-1. **ZTP + Netinstall closure** — first deliverable, gates everything below
+1. **ZTP + Netinstall closure** — first deliverable, gates everything below.
+   Netinstall-driven, hosted on the Pi, with the provisioning script arming
+   the next cycle so wipes stay repeatable —
+   [decisions/005](decisions/005-pi-as-ztp-host.md)
 2. WireGuard endpoint (RouterOS 7 native — pays back every day this lab
    isn't physically reachable)
 3. FRR / OSPF-BGP on the Pi

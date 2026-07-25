@@ -8,8 +8,14 @@
 
 Mid-purchase, cancelling the cheap MikroTik hEX in favor of the RB5009
 (~$220 vs ~$67) was considered. The RB5009 is a genuinely more capable
-router — notably, it can run RouterOS containers natively (arm64), which
-the hEX cannot (see [decisions/003](003-router-container-incapable.md)).
+router — notably, it can run RouterOS containers natively (arm64), which at
+the time was believed to be something the hEX could not do.
+
+**That premise turned out to be false** — the board actually bought (hEX
+refresh, E50UG) is ARM and can run containers, just with far less storage.
+See [decisions/003](003-on-router-containers.md). The conclusion below
+does not depend on it; the reasons that carry it are the Pi running FRR
+better and the topology argument.
 
 ## Decision
 
@@ -39,7 +45,9 @@ this lab is willing to let an agent brick.
 just wasn't spent. A router that's genuinely disposable for the lockout
 experiment.
 
-**What this forecloses:** on-router containers, for now. If FRR-on-router or
+**What this forecloses:** the RB5009's throughput and its headroom for
+on-router workloads — not container support as such, which this board turned
+out to have. If FRR-on-router or
 another RB5009-only capability is ever actually wanted, the answer is to buy
 one *later* as a second device — a two-router lab is more valuable here than
 one better router, since it also unlocks router-to-router scenarios
@@ -49,5 +57,5 @@ one better router, since it also unlocks router-to-router scenarios
 
 | Option | Reason Not Chosen |
 |--------|-------------------|
-| Upgrade to RB5009 | Its one real edge (on-router containers) is unneeded and actively conflicts with the Pi's role as agent host |
+| Upgrade to RB5009 | Its assumed edge (on-router containers) isn't one — the hEX refresh runs them too. Its real edge, headroom for on-router workloads, conflicts with the Pi's role as agent host |
 | Buy both now | No capability currently needs it; buy the second router only when a specific router-to-router scenario names the need |
