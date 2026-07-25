@@ -85,8 +85,18 @@ writeup. Everything below item 1 waits until item 1 actually ships.
 
 ## Status
 
-Hardware ordered 2026-07-22, arrives / pickup-ready 2026-07-25. Build not
-started — this repo is scaffolding ahead of the hardware landing.
+Hardware ordered 2026-07-22, all in hand 2026-07-25. First bring-up session
+that same day got the PC onto the router's segment; ZTP (roadmap item 1) is
+not started.
+
+## Bring-up notes
+
+[docs/bring-up-notes.md](docs/bring-up-notes.md) is the troubleshooting log
+for physical bring-up — symptoms, what they meant, and what fixed them. It
+already carries two things worth reading *before* cabling a machine onto the
+lab segment: pinning the lab NIC's interface metric so the lab router can't
+steal the default route, and disabling Energy Efficient Ethernet on the host
+NIC, which is what kept the first PC ↔ hEX link from coming up at all.
 
 ## Decisions
 
