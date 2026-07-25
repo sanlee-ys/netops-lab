@@ -83,6 +83,24 @@ substantive content of the custom default-configuration script, not an
 afterthought. It is also the exact surface the lockout experiment will later
 attack.
 
+Keeping the WAN framing at all is a choice rather than an inheritance, and is
+worth stating plainly because the first reading of this section assumed
+otherwise. `-s` *replaces* MikroTik's default configuration; it does not amend
+it. ether1 could equally have been authored as a plain management port with no
+untrusted side, and therefore no drop rule to make an exception to. The
+framing is kept because item 4 studies an agent severing its own management
+path, and the canonical form of that failure is a change to a deny-by-default
+firewall policy. Authoring the untrusted side away would remove the mechanism
+the later experiment exists to observe. The cost is accepted knowingly: the
+config calls ether1 a WAN while no WAN is attached, and management access
+depends on an exception holding inside a deny policy — more moving parts than
+the alternative, on the port the whole lab is reached through.
+
+A consequence that binds the ordering: the accept rule has to name a source
+address, and the script is authored before the router that will run it
+exists. The Pi's lab-side address must therefore be fixed and known in
+advance, not learned from a lease.
+
 ## Consequences
 
 **What this buys:** a provisioning path with one moving part instead of
@@ -122,3 +140,5 @@ decision only keeps it off item 1's critical path.
 | Keep Netinstall on the PC permanently | Leaves the provisioning cycle attended and split across two machines, which is the opposite of the repeatable harness item 4 depends on |
 | Prove it on the Pi with no fallback | Puts QEMU emulation on the critical path of a hardware bring-up day, where a failure would stall the gating deliverable |
 | Trigger wipes by holding the reset button | Works, but every cycle needs correct button timing with a person present — the tedium that stops repeat runs from happening |
+| Author ether1 as a plain management port, dropping the WAN framing entirely | Simplest config to reason about and the hardest to self-lock out of during item 1, but lab-shaped rather than field-shaped, and it deletes the deny-policy exception that item 4 exists to attack. The firewall work is deferred rather than avoided — item 2 needs a real uplink anyway |
+| Netinstall over ether1, then re-cable the Pi to a LAN port for steady-state management | Sidesteps the firewall question at the price of a manual cable move in every wipe cycle — reintroducing exactly the physical tedium this ADR's arming mechanism was designed to remove. The Pi has one NIC, so it cannot hold both ports at once |
