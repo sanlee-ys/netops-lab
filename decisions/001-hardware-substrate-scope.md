@@ -34,8 +34,9 @@ Concretely, out of scope unless a later decision picks it up:
 - A second router or switch, a rack, a PDU, a monitor/keyboard for the Pi
   (it runs headless).
 - RouterOS containers on the router itself — see
-  [decisions/003](003-router-container-incapable.md) (router is MMIPS +
-  16MB flash, containers are arm/arm64/x86 only per MikroTik's own docs).
+  [decisions/003](003-on-router-containers.md). (The board in hand can
+  in fact run them; they stay out of scope by choice, because the Pi is the
+  agent host.)
 - Kubernetes, beyond a possible future single scenario (k8s as a CNI/BGP
   networking lab where a cluster and the router actually talk to each
   other) — a single-node control plane to debug on top of the networking
