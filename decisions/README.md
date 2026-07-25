@@ -9,6 +9,7 @@ the decision, and the consequences — including trade-offs accepted.
 | [002](002-keep-the-hex-decline-rb5009.md) | Keep the hEX, decline the RB5009 upgrade | Accepted |
 | [003](003-router-container-incapable.md) | The router is container-incapable by design — verified, not assumed | Accepted |
 | [004](004-research-standing-of-the-agent-experiment.md) | Research standing of the agent experiment: what's claimable and what isn't | Accepted |
+| [005](005-pi-as-ztp-host.md) | The Pi is the ZTP host — Netinstall-driven, armed for repeat cycles | Accepted |
 
 ## Format
 
