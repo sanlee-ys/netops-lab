@@ -26,6 +26,21 @@ pricier router was considered and declined. It's also container-incapable by
 design (MMIPS, 16MB flash); all container workloads (FRR, syslog viewer,
 future agent runtime) live on the Pi, never the router.
 
+### Bring-up kit
+
+Consumables and tools, so bring-up day doesn't stall on a hardware-store run.
+
+| Item | Needed for | Status |
+|---|---|---|
+| Precision Phillips **PH0** | Pi 5 case screws, M2.5 HAT standoffs | Have — Greenworks 6pc precision set, 2026-07-25 |
+| Precision Phillips **PH00** | M2 retaining screw on the NVMe drive | Likely in the same set — sizes not all confirmed; M.2 HAT kits usually ship the screw themselves |
+| 2× ethernet patch cable | PC→hEX and Pi→hEX per the topology above | Unverified |
+| microSD card | Pi first boot / bootloader update before NVMe boot works | Unverified |
+| Pi 5 PSU (27W USB-C PD) | Pi 5 draws more than a Pi 4 supply provides | Unverified |
+
+"Unverified" means not yet checked against what's actually on hand — not
+that it's missing. Confirm before the build rather than during it.
+
 ## Topology
 
 ```mermaid
