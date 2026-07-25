@@ -17,14 +17,17 @@ rebuild.
 
 | Device | Role |
 |---|---|
-| MikroTik hEX (RouterOS, MMIPS) | device under test |
+| MikroTik hEX refresh, E50UG (RouterOS 7, ARM 32-bit, 512MB RAM, 128MB NAND) | device under test |
 | Raspberry Pi 5, 8GB, NVMe boot | ZTP / Netinstall host, then agent host |
 
 The router is deliberately the cheap end of MikroTik's lineup — see
 [decisions/002](decisions/002-keep-the-hex-decline-rb5009.md) for why a
-pricier router was considered and declined. It's also container-incapable by
-design (MMIPS, 16MB flash); all container workloads (FRR, syslog viewer,
-future agent runtime) live on the Pi, never the router.
+pricier router was considered and declined. It *can* run RouterOS containers
+(ARM, though only 128MB of NAND), but all container workloads — FRR, syslog
+viewer, future agent runtime — live on the Pi by design, never the router:
+the Pi is the dual-homed agent host, and hosting the agent on the device it
+might sever would defeat the lockout observation. See
+[decisions/003](decisions/003-on-router-containers.md).
 
 ## Topology
 

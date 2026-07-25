@@ -7,7 +7,7 @@ the decision, and the consequences — including trade-offs accepted.
 |---|-------|--------|
 | [001](001-hardware-substrate-scope.md) | Hardware substrate, not a simulator — and what's explicitly out of scope | Accepted |
 | [002](002-keep-the-hex-decline-rb5009.md) | Keep the hEX, decline the RB5009 upgrade | Accepted |
-| [003](003-router-container-incapable.md) | The router is container-incapable by design — verified, not assumed | Accepted |
+| [003](003-on-router-containers.md) | On-router containers — possible on this board, still not used | Accepted |
 | [004](004-research-standing-of-the-agent-experiment.md) | Research standing of the agent experiment: what's claimable and what isn't | Accepted |
 | [005](005-pi-as-ztp-host.md) | The Pi is the ZTP host — Netinstall-driven, armed for repeat cycles | Accepted |
 

@@ -72,7 +72,8 @@ the command requires a reachable, running device. If an agent later leaves
 the router running-but-unreachable — precisely the failure item 4 exists to
 study — there is no opportunity to arm it after the fact.
 
-**Topology consequence.** On the RB750Gr3, Netinstall boots from ether1. The
+**Topology consequence.** Netinstall boots from the first port or a port
+marked BOOT — ether1 on this board. The
 Pi has a single NIC, so its lab-side link goes to **ether1**, and the Pi sits
 on what the stock configuration treats as the WAN side. MikroTik's default
 configuration makes ether1 a DHCP client behind a firewall that drops input
