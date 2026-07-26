@@ -49,20 +49,25 @@ the split is recorded here rather than re-derived every session:
 - **The Pi touches hardware** — Netinstall, the router, the wipe cycle, per
   [decisions/005](decisions/005-pi-as-ztp-host.md) — and hosts long-running
   detached agent sessions under `herdr`.
-- **The Pi has no push credentials, deliberately.** A git identity there is
-  fine and harmless — a commit that can't leave the box costs nothing. What the
-  Pi must not hold is a way to write to the remote: no GitHub SSH key, no PAT
-  credential helper. The reason is specific rather than general caution. `herdr`
-  runs on that box, and its working input path (`pane.send-*`) leaves no entry
-  in any log, so an instruction can reach an agent there with no record of where
-  it came from. That already happened once during the trial. Give that box push
-  credentials and an unattributable input gains the ability to write history.
-- **So work done on the Pi reaches GitHub via the PC.** Copy the files across
-  and commit there. It is one `scp` and it keeps the audit boundary intact.
+- **The Pi has no push credentials.** A git identity there is fine — a commit
+  that can't leave the box costs nothing. The Pi just has no GitHub SSH key and
+  no PAT credential helper, so work done there reaches GitHub via the PC: one
+  `scp`, then commit where the signing key already is.
 
-`herdr` on the Pi is used for session persistence only. Its awareness signal is
-correct but screen-scraped, so read it and never gate anything irreversible on
-it; its `agent prompt` call reports success for input it never submits. The
+  **Weaker than it was first written.** This originally cited a specific
+  incident — an instruction reaching an agent on that box with no record of its
+  origin. That incident did not happen; the text involved was the agent's own
+  dim placeholder suggestion, not anything sent. What remains is general:
+  `herdr` runs there and its `pane.send-*` calls aren't logged, so a driven
+  session leaves a thinner record than an audited one. That is a reason to
+  prefer the seam, not a reason it's load-bearing. If it ever gets in the way,
+  it's re-decidable on convenience alone.
+
+`herdr` on the Pi is used for session persistence and interactive work, and can
+be driven from outside — `agent prompt` works, contrary to what this file said
+earlier. The one standing caution is that its awareness signal is screen-scraped
+from Claude Code's UI, so read it freely and never gate anything irreversible on
+it: when it drifts it reports a confident wrong `idle` rather than erroring. The
 lab's own decision is [decisions/007](decisions/007-herdr-as-agent-workspace.md);
 the general rule behind it is claude-ops
 [ADR-005](https://github.com/sanlee-ys/claude-ops/blob/main/decisions/ADR-005-herdr-persistence-not-agent-awareness.md).

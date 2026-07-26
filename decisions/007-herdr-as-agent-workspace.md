@@ -2,6 +2,12 @@
 
 **Status:** Accepted
 **Date:** 2026-07-26
+**Corrected:** 2026-07-26, hours after acceptance. **Two findings below are
+retracted.** `herdr agent prompt` submits correctly — it was re-tested directly
+and worked twice — and the unsubmitted text cited as evidence of careful
+detection was the agent's own dim placeholder suggestion, not entered text. The
+retractions are marked in place. Decision 2 is unaffected and is now the whole
+of this ADR's caution.
 **Deciders:** San Lee
 **Related:** claude-ops
 [ADR-005](https://github.com/sanlee-ys/claude-ops/blob/main/decisions/ADR-005-herdr-persistence-not-agent-awareness.md)
@@ -46,9 +52,13 @@ connection that launched it left both alive with scrollback intact — which
 matters on a box reached over wifi, where the link is the least reliable part.
 
 **Awareness works, and is not built the way the documentation implies.** Every
-state herdr reported was correct, attached and detached, including the subtle
+state herdr reported was correct, attached and detached. ~~including the subtle
 case of a pane holding *unsubmitted* text in its prompt box — visually busy,
-correctly reported idle. With no client attached it tracked a full cycle:
+correctly reported idle.~~ *(Retracted: that text was dim placeholder
+suggestion, carrying the ANSI faint attribute, and herdr documents recognising
+placeholders by exactly that. Reporting idle was trivially correct. Detection
+was still right in every observed case; this was not evidence for it.)* With no
+client attached it tracked a full cycle:
 
 ```
 10:48:08  client disconnected (no reconnect)
@@ -65,13 +75,27 @@ Pushing an explicit state via `pane.report_agent`, using the official
 `herdr:claude` source and a fresh sequence number, was ignored. The screen
 manifest is the sole authority, and nothing Claude Code reports can override it.
 
-**Two capabilities do not work.**
+**One capability does not work, and one was wrongly accused.**
 
-`herdr agent prompt` delivers keystrokes into the prompt box without submitting
-them, and logs `outcome="ok"` while doing so. A script driving a pane would read
-success and move on. The working substitute is `herdr pane send-keys <pane>
-enter` — which, unlike `agent.prompt`, is not recorded in the server log at all.
-The input path that fails is audited; the one that succeeds is invisible.
+~~`herdr agent prompt` delivers keystrokes into the prompt box without
+submitting them, and logs `outcome="ok"` while doing so.~~ **RETRACTED.**
+Re-tested on the same host and Claude Code build, in a scratch pane, from
+one-shot SSH commands with no client attached: it submitted and the agent
+answered, with `--wait` and without. Twice, verified by reading the pane back.
+
+The original claim came from one `outcome="ok"` log line correlated with text
+believed to be sitting unsubmitted in a composer. That text was placeholder, so
+there was nothing unsubmitted, and the log line was recording a call that had
+worked. An upstream report of this bug does exist
+([herdr#1878](https://github.com/ogulcancelik/herdr/issues/1878), filed
+independently hours before this trial), so it is real somewhere — it is not real
+here, and this ADR should not have asserted it from correlation.
+
+What remains, unchanged and verified: `pane.send-keys` and `pane.send-text` are
+not written to the server log, while `agent.prompt` is. That is an ordinary
+logging gap. It was originally framed as an inversion — the failing path audited,
+the working path invisible — and with the retraction there is no failing path,
+so the framing goes with it.
 
 `done` — the state meaning "the agent finished while you weren't looking" —
 exists only while a client is attached, and is cleared by the act of detaching.
@@ -81,12 +105,17 @@ concept, so with nobody attached there is nobody to notify. It was built for
 
 ## Decision
 
-**1. Herdr is adopted for session persistence on the Pi, and not as the standing
-way long agent work is run.** It keeps a wipe-cycle session alive across the
-wifi drops this box is prone to, which is a real gain over a bare SSH session.
-It does not become the assumed substrate for item 4 until it can be driven
-programmatically, because the moment a script depends on `agent prompt` it
-depends on a call that lies about succeeding.
+**1. Herdr is adopted for session persistence on the Pi.** It keeps a wipe-cycle
+session alive across the wifi drops this box is prone to, which is a real gain
+over a bare SSH session.
+
+*(Corrected. This decision originally continued: "and not as the standing way
+long agent work is run … because the moment a script depends on `agent prompt`
+it depends on a call that lies about succeeding." That premise is retracted —
+`agent prompt` works, and a script can drive a pane. Whether herdr becomes item
+4's harness is now an open question to be decided when item 4 needs one, on the
+merits of decision 2's reservation, rather than settled here by a defect that
+does not exist.)*
 
 **2. Agent status is advisory, not authoritative.** Nothing in this lab may gate
 a destructive action — a wipe, a power cycle, a config push — on herdr's
@@ -131,25 +160,28 @@ silently rather than loudly when that chrome moves. Decision 3 converts that
 from a silent failure into a login-time warning, but does not remove it: the
 check compares *inputs* to detection and cannot prove detection is correct.
 
-**What this forecloses.** Nothing permanently. If `agent prompt` is fixed
-upstream, decision 1 can be revisited without unwinding anything — the
-persistence use is a strict subset of the driving use.
+**What this forecloses.** Nothing permanently. The persistence use is a strict
+subset of the driving use, so adopting the latter later unwinds nothing.
 
 ## Deferred
 
 - **A functional probe.** Driving a pane through a known working→idle cycle and
   asserting herdr observed both edges would be ground truth, and would catch
-  everything the version comparison in decision 3 cannot. It depends on the
-  `send-keys` wrapper below, so it waits on the same thing.
-- **A wrapper for the submit bug** (`agent prompt` followed by `send-keys
-  enter`). The mechanism is proven by hand but not scripted, because building it
-  would create exactly the script-driving dependency decision 1 declines to take
-  on while the underlying call misreports success.
+  everything the version comparison in decision 3 cannot. *(Corrected: this was
+  blocked on a wrapper for a submit bug that does not exist. `agent prompt`
+  drives a pane directly, so the probe is now straightforward — start an agent
+  in a scratch pane, prompt it, assert herdr saw `working` then `idle`, close
+  the pane. Every step of that was performed by hand during the correction pass.
+  It is deferred because nothing needs it yet, not because it is blocked.)*
+- ~~**A wrapper for the submit bug.**~~ **Removed.** There is no submit bug.
 - **Standing permission for herdr to drive agent sessions.** Claude Code's
-  auto-mode classifier blocked `herdr agent prompt` during the trial, correctly.
-  Granting it is a real decision, made worse by `pane.*` calls leaving no audit
-  trail, and should be decided deliberately rather than as a side effect of
-  unblocking one command.
+  auto-mode classifier blocked `herdr agent prompt` during the trial. *(Note:
+  the same command ran without objection from a plain SSH invocation during the
+  correction pass, so the block is a property of how the call was made, not of
+  the command.)* Granting standing permission is still a real decision — the
+  `pane.*` logging gap means a driven session leaves a thinner record than an
+  audited one — and should be decided deliberately rather than as a side effect
+  of unblocking one command.
 - **FirstMate, Treehouse and No Mistakes** — the rest of the workflow that
   prompted this trial. Skipped before it began and still skipped. FirstMate
   tracks upstream `main` unpinned and loads executable TypeScript into the agent
@@ -161,7 +193,7 @@ persistence use is a strict subset of the driving use.
 | Option | Reason Not Chosen |
 |--------|-------------------|
 | `tmux` for persistence, nothing more | Does the persistence job with one `apt install` and no network-fetched manifest deciding what the tool believes. Rejected only because herdr's detached working/idle signal is real and `tmux` has no equivalent — but this stays the fallback if decision 3 starts firing regularly |
-| Adopt herdr as the standing agent workspace now | Would put item 4's harness on top of `agent prompt`, a call that delivers keystrokes without submitting them and reports success anyway. A harness that silently does nothing is worse than no harness |
+| ~~Adopt herdr as the standing agent workspace now~~ | ~~Would put item 4's harness on top of `agent prompt`, a call that delivers keystrokes without submitting them and reports success anyway.~~ **Row retracted** — that call works. This option is no longer ruled out; it is simply undecided until item 4 needs a harness, and the only argument against it then is decision 2's reservation about screen-scraped detection |
 | Pin the detection manifest locally | Defends against the low-severity risk (a tampered regex file that can only misreport state) at the cost of guaranteeing the high-severity one (staleness against a UI that moves). Available as one line — `[update] manifest_check = false` — if the trade is ever re-decided |
 | Replace screen-scraping with an event-driven hook reporting real lifecycle state | Not possible. `pane.report_agent` was tested with the official source string and a fresh sequence and is ignored for Claude Code; the screen manifest is the sole authority |
 | Treat `agent_status` as authoritative and gate wipe cycles on it | The failure mode is a confident wrong `idle`, not an error. Gating a NAND format on a regex match against a spinner character is the kind of dependency this lab exists to *find*, not to build |
