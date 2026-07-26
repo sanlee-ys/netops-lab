@@ -92,10 +92,11 @@ parts that are hardest to get right without hands-on practice. See
 Sequenced, not exhaustive — this is what's ordered so far. Backlog below is
 real but unscheduled.
 
-1. **ZTP + Netinstall closure** — first deliverable, gates everything below.
-   Netinstall-driven, hosted on the Pi, with the provisioning script arming
-   the next cycle so wipes stay repeatable —
-   [decisions/005](decisions/005-pi-as-ztp-host.md)
+1. ~~**ZTP + Netinstall closure**~~ — **working, 2026-07-26.** Netinstall-driven,
+   hosted on the Pi, with the provisioning script arming the next cycle so
+   wipes stay repeatable —
+   [decisions/005](decisions/005-pi-as-ztp-host.md),
+   [decisions/006](decisions/006-management-surface-on-ether1.md)
 2. WireGuard endpoint (RouterOS 7 native — pays back every day this lab
    isn't physically reachable)
 3. FRR / OSPF-BGP on the Pi
@@ -124,15 +125,35 @@ Two bring-up sessions that day. The PC is on the router's segment, and the Pi
 (`goguma`) is built — booting from NVMe, headless on wifi, EEPROM current.
 That closes the hardware substrate gate on everything below.
 
-Roadmap item 1 is **designed, not run**. The custom default-configuration
-script exists as a draft at
-[provisioning/default-config.rsc](provisioning/default-config.rsc), with the
-management surface it opens decided in
-[decisions/006](decisions/006-management-surface-on-ether1.md). One mechanism
-in it — installing the Pi's SSH key — has been verified on the live router at
-an interactive prompt. Nothing else in the file has been applied to a device,
-and no Netinstall has been performed. `netinstall-cli` is not yet set up on
-the Pi.
+**Roadmap item 1 works.** On 2026-07-26 a wiped board went from
+factory-blank to fully configured on **one power cycle** — no button hold, no
+console, no serial adapter. `netinstall-cli` runs on the Pi under user-mode
+QEMU, serving BOOTP and TFTP on the lab link and pushing
+[provisioning/default-config.rsc](provisioning/default-config.rsc), whose
+management surface is decided in
+[decisions/006](decisions/006-management-surface-on-ether1.md). The Pi then
+authenticates to the provisioned router by SSH key, through the single
+firewall exception the script wrote for it.
+
+A repeat cycle is one command on the Pi followed by a power cycle —
+[provisioning/reprovision.sh](provisioning/reprovision.sh) — and
+`ssh lab-router "/system resource print"` then answers with no prompt of any
+kind. RouterOS does demand an interactive password change on first login, but
+it is interactive-only and a non-interactive session never meets it.
+
+What that cost, and it is worth knowing before repeating this: the barriers to
+running unattended were not on the router at all. They were SSH host-key
+verification and a key passphrase **on the Pi**, invisible until something
+non-interactive tried to run. Zero-touch moved to the host driving it rather
+than being achieved outright, and the Pi's `ssh-agent` still needs a human
+after a reboot — a limitation that lands on item 4 and is recorded in
+[decisions/006](decisions/006-management-surface-on-ether1.md).
+
+One thing remains genuinely unresolved: whether the script's arming line ran,
+or whether `boot-device` merely persisted through the format on its own. This
+board is armed either way; a *factory* board might not be. The full run,
+including the failures along the way, is in
+[docs/bring-up-notes.md](docs/bring-up-notes.md).
 
 ## Bring-up notes
 

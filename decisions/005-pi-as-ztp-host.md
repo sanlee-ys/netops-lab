@@ -121,6 +121,10 @@ the reset-button tedium this decision rejected, and moving to 7.22 (where
 Netinstall can configure device-mode directly) stops being optional. Observe
 it on the first Netinstall.
 
+**ANSWERED 2026-07-26: it survives.** `routerboard: yes` came back intact after
+a full format. Enabling the flag is a one-time per-device bootstrap, and the
+7.22 upgrade stays deferred to item 4 rather than being forced into item 1.
+
 One piece of luck worth keeping deliberate: the arming command is the **last**
 statement in `provisioning/default-config.rsc`. If it aborts the script under
 device-mode denial, everything else has already applied. That ordering was
@@ -172,6 +176,32 @@ not yet unattended.
 **What this forecloses:** nothing permanently. TR-069 can be revisited as a
 separate scenario if an ACS ever becomes interesting on its own merits; this
 decision only keeps it off item 1's critical path.
+
+## Outcome, 2026-07-26
+
+The decision held. A factory-blank board reached fully-configured on **one
+power cycle**, with no button hold, no console and no serial adapter. `-r -s`
+compose as designed, the Pi hosts the whole cycle under QEMU, and the PC
+fallback in decision 2 was never triggered.
+
+Two things remain open, both recorded in `provisioning/default-config.rsc`:
+
+- **Netinstall leaves `admin` blank and RouterOS demands an interactive
+  password change on first login.** Key auth succeeds and the prompt appears
+  anyway, so a script-driven Pi would meet it too. "Zero-touch" therefore still
+  has a human in it. The decisive untested question is whether a
+  *non-interactive* SSH bypasses the prompt; if it does, nothing needs to
+  change.
+- **Whether the arming line actually ran.** `boot-device` is a RouterBOOT
+  setting and may survive a NAND format independently of RouterOS, so this run
+  cannot distinguish the script having armed the board from the manual value
+  persisting. It matters because a truly factory board starts at
+  `routerboard: no`, where that line fails. Settle it by setting
+  `boot-device=nand` and re-running the cycle.
+
+Both are answerable by one more wipe cycle, which is itself the point: the
+harness this ADR set out to build is now the cheapest way to answer questions
+about the harness.
 
 ## Deferred
 

@@ -1,9 +1,14 @@
 # netops-lab — custom default-configuration script for the hEX refresh (E50UG)
 #
-# DRAFT. Not yet run. See "Unverified" below before trusting any of it.
+# APPLIED AND VERIFIED on a real board, 2026-07-26. See "Verification status".
 #
-# Installed with:
-#   netinstall-cli -r -s default-config.rsc -i <iface> --mac <router-mac> routeros-*.npk
+# Installed with, exactly as run:
+#   sudo qemu-i386-static ./netinstall-cli -i eth0 -r \
+#       -s ~/netops-lab/provisioning/default-config.rsc routeros-7.20.8-arm.npk
+#
+# `-i eth0` is not cosmetic. netinstall-cli runs its own BOOTP server, and the
+# Pi is dual-homed onto the house network — an unbound server would answer on
+# wlan0 too. Bind it to the lab link.
 #
 # `-s` replaces MikroTik's default configuration script. It has no minimum
 # RouterOS version and survives both RouterOS updates and configuration
@@ -23,29 +28,37 @@
 # ---------------------------------------------------------------------------
 # Verification status — read before trusting any of this
 # ---------------------------------------------------------------------------
-#   1. The /file print + /file set + /user ssh-keys import sequence near the
-#      bottom was run interactively on the live router (7.20.8, 2026-07-25) and
-#      works: /user ssh-keys print showed the key attached to admin with the -C
-#      comment carried through as key-owner.
+# VERIFIED on hardware, first Netinstall 2026-07-26 (hEX E50UG, RouterOS 7.20.8):
 #
-#      Precisely what that does and does not establish: the COMMANDS work at an
-#      interactive prompt. It has NOT been shown that /file print file= behaves
-#      the same inside a default-configuration script at first boot, which is a
-#      different execution context. Confirm on the first netinstall.
+#   - The whole file applies. Factory-blank to fully configured on one power
+#     cycle, no button hold, no console.
+#   - `-r -s` compose. `-r` applies the default configuration and `-s` makes
+#     that configuration this file.
+#   - The /file print + /file set + /user ssh-keys import sequence works
+#     INSIDE a default-configuration script at first boot, not merely at an
+#     interactive prompt. This was the execution-context doubt; it is settled.
+#     `ssh admin@192.168.99.1` from the Pi authenticated by key, no password.
+#   - Addresses, the IPv6 input guard, and an empty NAT table all landed.
+#   - The management accept sits at index 5, above the !LAN drop at index 6.
+#     Order survives the script as written.
+#   - device-mode `routerboard: yes` SURVIVES a Netinstall. Enabling it is a
+#     one-time per-device bootstrap, not a per-cycle tax.
 #
-#   2. The `-r -s` combination in the install line above is not confirmed. `-r`
-#      is documented as "reinstall with default configuration script" and `-s`
-#      installs a custom one; whether -s implies -r, requires it, or conflicts
-#      with it is unread. Check before the first run.
+# STILL OPEN:
 #
-#   3. What netinstall leaves the admin password as. If a fresh install demands
-#      an interactive password change on first login, key auth may not be enough
-#      to keep provisioning unattended, and this file needs a /user set line.
+#   [RESOLVED 2026-07-26] RouterOS demands an interactive password change on
+#   first login after a Netinstall — admin is left blank. It is
+#   INTERACTIVE-ONLY: `ssh admin@host "/system resource print"` prints with no
+#   prompt on a freshly installed board. A script driving this router never
+#   meets it, so no /user set line is needed here. The prompts that do block
+#   automation turned out to be on the Pi (host-key verification and the key
+#   passphrase) — see docs/bring-up-notes.md and decisions/006.
 #
-#   4. The IPv6 input guard is written from the stock rules but has not been
-#      applied to a device.
-#
-#   5. The file as a whole has never been applied to anything.
+#   1. Whether the arming line at the bottom actually ran, or whether
+#      boot-device merely persisted. boot-device is a RouterBOOT setting and may
+#      survive a NAND format on its own, so this run cannot distinguish the two.
+#      Settle it by setting boot-device=nand, re-running the cycle, and seeing
+#      which value comes back.
 # ---------------------------------------------------------------------------
 
 # --- Lab-facing LAN: ether2-5 bridged, unchanged in spirit from stock --------
