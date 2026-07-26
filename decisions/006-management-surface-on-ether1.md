@@ -99,6 +99,38 @@ password login before a working key is attached is itself a self-lockout.
 Losing the key costs a Netinstall, which is the harness being built anyway
 rather than a disaster. That is what makes key-only affordable here.
 
+**Amended 2026-07-26 — the passphrase, and where zero-touch actually lives.**
+The first unattended test surfaced two prompts that had been hidden behind
+interactive habits, both on the **Pi** rather than the router: SSH host-key
+verification, and the passphrase on goguma's key. Neither would stop a human.
+Both stop a script.
+
+The host-key prompt is permanent, not incidental: Netinstall regenerates the
+router's host keys, so its identity legitimately changes every cycle. Handled
+with a `lab-router` block in the Pi's `~/.ssh/config` using
+`StrictHostKeyChecking accept-new` and a **separate** `known_hosts.lab` file,
+so a provisioning wrapper can delete one file per cycle without touching the
+Pi's real known-hosts. `accept-new` still refuses a *changed* key mid-cycle,
+which is the case worth hearing about.
+
+The passphrase was a real fork. **Chosen: keep the passphrase and hold the key
+in a persistent `ssh-agent`** (a systemd user service plus `loginctl
+enable-linger`, so it survives logout on a headless box). Rejected: a separate
+passphraseless automation key, and stripping the passphrase from the existing
+one.
+
+**The accepted cost is on item 4, and is stated here so it is not
+rediscovered.** An agent must be unlocked by a human after every Pi reboot.
+The wipe loop is therefore unattended *within* a session but not *across* a Pi
+restart — which is precisely the scenario a lockout experiment is most likely
+to produce. If item 4 ever needs the Pi to recover a router without a human
+present, this decision is the thing to revisit first.
+
+**Zero-touch moved rather than being achieved.** The router side is genuinely
+unattended: a non-interactive SSH bypasses RouterOS's forced first-login
+password change entirely. What remains is host-side automation hygiene, which
+is a more honest place for the problem to live.
+
 **5. IPv6 gets a minimal input guard, and no management exception.**
 
 This closes a second back door of exactly the same shape as the MAC-Winbox

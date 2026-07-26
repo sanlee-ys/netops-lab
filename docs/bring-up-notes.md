@@ -154,22 +154,74 @@ after a full format. That decides a question that was going to force a
 RouterOS 7.22 upgrade: enabling the flag is a one-time per-device bootstrap,
 not something every wipe cycle has to repeat.
 
-### The gap that remains
+### The password prompt, and why it turned out not to matter
 
 **RouterOS demands an interactive password change on first login.** Netinstall
 leaves `admin` with a blank password; key auth gets you in, and the prompt
-appears anyway. A script-driven Pi would hit the same prompt, so "zero-touch"
-still has a human in it.
+appears anyway.
 
-The decisive and untested question is whether a *non-interactive* SSH bypasses
-it:
+**It is interactive-only.** A non-interactive SSH bypasses it completely:
 
 ```bash
 ssh admin@192.168.99.1 "/system resource print"
 ```
 
-If that runs without prompting, unattended provisioning is unaffected and the
-prompt is a cosmetic property of interactive logins.
+prints the table with no prompt at all, on a board with 2m uptime. So a script
+driving this router unattended never meets it, and the provisioning script
+needs no `/user set` line. The router side of zero-touch is intact.
+
+### The two prompts that DO block automation are on the Pi
+
+That same test surfaced both, hidden until then behind interactive habits:
+
+```
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Enter passphrase for key '/home/sanlee/.ssh/id_ed25519':
+```
+
+Neither stops a human. Both stop a script. Zero-touch moved from the router to
+the host driving it.
+
+**The host-key prompt is permanent, not incidental.** Netinstall regenerates
+the router's SSH host keys, so its identity legitimately changes every cycle.
+Don't paper over it with `StrictHostKeyChecking no` — give the router its own
+known-hosts file so a wrapper can clear one file per cycle:
+
+```
+Host lab-router
+    HostName 192.168.99.1
+    User admin
+    IdentityFile ~/.ssh/id_ed25519
+    AddKeysToAgent yes
+    StrictHostKeyChecking accept-new
+    UserKnownHostsFile ~/.ssh/known_hosts.lab
+```
+
+`accept-new` takes a first-seen key silently but still refuses a *changed* one
+mid-cycle, which is the case actually worth hearing about.
+
+**The passphrase** is handled with a persistent `ssh-agent` — a systemd user
+service plus `loginctl enable-linger sanlee`, without which systemd tears down
+user services when the last SSH session closes and the agent dies on every
+logout.
+
+```bash
+systemctl --user enable --now ssh-agent
+sudo loginctl enable-linger sanlee
+echo 'export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"' >> ~/.bashrc
+ssh-add ~/.ssh/id_ed25519
+```
+
+Known limitation, chosen deliberately (see
+[decisions/006](../decisions/006-management-surface-on-ether1.md)): the agent
+needs a human to unlock it after every Pi reboot. The wipe loop is unattended
+within a session, not across a Pi restart.
+
+End-to-end test, which should print with no prompts of any kind:
+
+```bash
+ssh lab-router "/system resource print"
+```
 
 ### One ambiguity, recorded rather than glossed
 

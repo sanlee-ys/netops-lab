@@ -46,14 +46,15 @@
 #
 # STILL OPEN:
 #
-#   1. RouterOS demands an INTERACTIVE PASSWORD CHANGE on first login after a
-#      Netinstall — admin is left blank. Key auth gets you in and then the
-#      prompt appears anyway. This is the remaining gap in "zero-touch": a
-#      script-driven Pi hits the same prompt. Untested and decisive: whether a
-#      NON-interactive ssh (`ssh admin@host "/system resource print"`) bypasses
-#      it. If it does, nothing here needs to change.
+#   [RESOLVED 2026-07-26] RouterOS demands an interactive password change on
+#   first login after a Netinstall — admin is left blank. It is
+#   INTERACTIVE-ONLY: `ssh admin@host "/system resource print"` prints with no
+#   prompt on a freshly installed board. A script driving this router never
+#   meets it, so no /user set line is needed here. The prompts that do block
+#   automation turned out to be on the Pi (host-key verification and the key
+#   passphrase) — see docs/bring-up-notes.md and decisions/006.
 #
-#   2. Whether the arming line at the bottom actually ran, or whether
+#   1. Whether the arming line at the bottom actually ran, or whether
 #      boot-device merely persisted. boot-device is a RouterBOOT setting and may
 #      survive a NAND format on its own, so this run cannot distinguish the two.
 #      Settle it by setting boot-device=nand, re-running the cycle, and seeing
