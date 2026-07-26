@@ -49,14 +49,22 @@ the split is recorded here rather than re-derived every session:
 - **The Pi touches hardware** — Netinstall, the router, the wipe cycle, per
   [decisions/005](decisions/005-pi-as-ztp-host.md) — and hosts long-running
   detached agent sessions under `herdr`.
-- **The Pi deliberately has no git identity.** It is not configured to commit,
-  and that is the design rather than an oversight: work done there is reported
-  back and committed from the PC. Don't "fix" it by setting `user.email` on the
-  Pi. That would hand an agent path with no audit trail the ability to write
-  history.
+- **The Pi has no push credentials, deliberately.** A git identity there is
+  fine and harmless — a commit that can't leave the box costs nothing. What the
+  Pi must not hold is a way to write to the remote: no GitHub SSH key, no PAT
+  credential helper. The reason is specific rather than general caution. `herdr`
+  runs on that box, and its working input path (`pane.send-*`) leaves no entry
+  in any log, so an instruction can reach an agent there with no record of where
+  it came from. That already happened once during the trial. Give that box push
+  credentials and an unattributable input gains the ability to write history.
+- **So work done on the Pi reaches GitHub via the PC.** Copy the files across
+  and commit there. It is one `scp` and it keeps the audit boundary intact.
 
-`herdr` on the Pi is used for session persistence only. Its `done` state and its
-`agent prompt` call are not dependable — see claude-ops
+`herdr` on the Pi is used for session persistence only. Its awareness signal is
+correct but screen-scraped, so read it and never gate anything irreversible on
+it; its `agent prompt` call reports success for input it never submits. The
+lab's own decision is [decisions/007](decisions/007-herdr-as-agent-workspace.md);
+the general rule behind it is claude-ops
 [ADR-005](https://github.com/sanlee-ys/claude-ops/blob/main/decisions/ADR-005-herdr-persistence-not-agent-awareness.md).
 
 <!-- shared:links-verify v1 -->

@@ -11,6 +11,7 @@ the decision, and the consequences — including trade-offs accepted.
 | [004](004-research-standing-of-the-agent-experiment.md) | Research standing of the agent experiment: what's claimable and what isn't | Accepted |
 | [005](005-pi-as-ztp-host.md) | The Pi is the ZTP host — Netinstall-driven, armed for repeat cycles | Accepted |
 | [006](006-management-surface-on-ether1.md) | The management surface the provisioning script opens on ether1 | Accepted |
+| [007](007-herdr-as-agent-workspace.md) | Herdr is the agent workspace on the Pi — for persistence, not for driving | Accepted |
 
 ## Format
 
