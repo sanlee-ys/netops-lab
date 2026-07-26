@@ -39,6 +39,71 @@ needs an **elevated** shell.
 
 ---
 
+## 2026-07-25 — device-mode blocks arming on a factory board
+
+**Symptom.** On a factory hEX refresh, the command ADR-005 relies on to arm the
+next Netinstall cycle simply refuses:
+
+```
+/system routerboard settings set boot-device=try-ethernet-once-then-nand
+failure: not allowed by device-mode
+```
+
+**What it means.** RouterOS device-mode gates whole feature groups, and
+`/system routerboard settings` sits behind a flag called `routerboard` that is
+**off by default in every mode**. This board ships in `mode: home`, the most
+restrictive one. Check what you actually have before doing anything:
+
+```
+/system device-mode print
+```
+
+A factory hEX comes back with `mode: home` and, notably, `scheduler: no`,
+`fetch: no`, `romon: no`, `sniffer: no`, `container: no`, `routerboard: no`.
+That list is worth reading in full once — it is not only about boot-device.
+
+**Fix.** Enable the single flag, then confirm physically:
+
+```
+/system device-mode update routerboard=yes
+```
+
+The device replies with a countdown — roughly *"turn off power or reboot by
+pressing reset or mode button in 4m55s to activate"* — and the timer runs on
+the **device**, not in your terminal. Don't quit the display first; just pull
+the power. The router reboots itself to apply, so allow 30–60s before SSH
+returns.
+
+**Use the power cycle, not the button.** The documentation offers either, but
+this board's only button is the reset button, and a mistimed hold there is a
+configuration reset. The power cycle is unambiguous.
+
+Verify, then retry the original command:
+
+```
+/system device-mode print          # want routerboard: yes
+/system routerboard settings set boot-device=try-ethernet-once-then-nand
+/system routerboard settings print
+```
+
+**Two things this settled that the docs left ambiguous.** Individual flags can
+be overridden on top of a mode — `mode: home` with `routerboard: yes` is a
+valid state, despite one source suggesting the flag was settable only in ROSE
+mode. And the mode is not cosmetic: `scheduler: no` and `fetch: no` will matter
+to anything script-driven built on this box later.
+
+**One thing worth taking as good news.** `romon: no` means RoMON — MikroTik's
+layer-2 management overlay, reachable without IP — is off by default. That is a
+third out-of-band path of the same class as MAC-Winbox and IPv6 link-local,
+closed for free by the restrictive shipping mode. Don't enable it absent-mindedly.
+
+**Still open:** whether the `routerboard` flag survives a Netinstall. If it
+does, this is a one-time bootstrap. If it does not, every wipe cycle needs this
+dance repeated with a power cycle, and RouterOS 7.22 — where Netinstall can set
+device-mode itself via `-sm` — becomes necessary rather than optional.
+
+---
+
 ## 2026-07-25 — netinstall-cli on the Pi under QEMU
 
 **Host:** `goguma` (Pi 5, aarch64, Raspberry Pi OS Lite Bookworm).

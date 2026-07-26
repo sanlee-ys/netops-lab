@@ -231,6 +231,19 @@ set always-allow-password-login=no
 # is precisely the failure item 4 studies, so there is no chance to arm it after
 # the fact. Every provisioned router therefore already offers itself to a
 # Netinstall server on its next boot, falling through to NAND when none answers.
+#
+# REQUIRES device-mode `routerboard: yes`. A factory board ships in mode: home
+# with that flag off, and this line then fails with `not allowed by
+# device-mode`. Enabling it needs /system device-mode update routerboard=yes
+# plus a physical power cycle, which a script cannot perform.
+#
+# THIS MUST STAY LAST IN THE FILE. If device-mode denies it and the denial
+# aborts the script, everything above has already applied. Do not append
+# anything below it.
+#
+# Whether the flag survives a Netinstall is unknown — see decisions/005. If it
+# does not, this line fails on every cycle and the 7.22 upgrade (where
+# Netinstall can set device-mode via -sm) becomes required rather than deferred.
 
 /system routerboard settings
 set boot-device=try-ethernet-once-then-nand

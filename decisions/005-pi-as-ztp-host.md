@@ -87,6 +87,45 @@ the command requires a reachable, running device. If an agent later leaves
 the router running-but-unreachable — precisely the failure item 4 exists to
 study — there is no opportunity to arm it after the fact.
 
+**Device-mode precondition, discovered on hardware 2026-07-25.** The arming
+command above fails with `not allowed by device-mode` on a factory board. The
+hEX ships in **`mode: home`**, the most restrictive mode, and
+`/system routerboard settings` is gated behind a `routerboard` flag that is
+off by default in every mode. Enabling it is not a configuration change that
+can be made over SSH alone:
+
+```
+/system device-mode update routerboard=yes
+```
+
+then **physical confirmation within 5 minutes** — a power cycle or a button
+press — after which the device reboots itself. A power cycle is preferable on
+this board: its only button is the reset button, and a mistimed hold there is
+a configuration reset.
+
+Two things this established that documentation left ambiguous. Individual
+flags **can** be overridden on top of a mode (`mode: home` with
+`routerboard: yes` is a valid state on a hEX); one source suggested the flag
+was settable only in ROSE mode, and that is not what the device does. And
+`mode: home` also has `scheduler`, `fetch`, `romon`, `sniffer` and `container`
+off, which reaches well past this ADR — item 4 is netwatch-driven, and
+`romon: no` is silently closing a third layer-2 back door alongside MAC-Winbox
+and IPv6 link-local.
+
+**The open question this leaves is whether the `routerboard` flag survives a
+Netinstall.** If it persists, enabling it is a one-time bootstrap and the
+provisioning script's arming line works on every subsequent cycle. If
+Netinstall resets it, then on 7.20.8 every cycle needs a manual device-mode
+update plus a power cycle before the router can be armed — which is worse than
+the reset-button tedium this decision rejected, and moving to 7.22 (where
+Netinstall can configure device-mode directly) stops being optional. Observe
+it on the first Netinstall.
+
+One piece of luck worth keeping deliberate: the arming command is the **last**
+statement in `provisioning/default-config.rsc`. If it aborts the script under
+device-mode denial, everything else has already applied. That ordering was
+incidental when written and is now load-bearing.
+
 **Topology consequence.** Netinstall boots from the first port or a port
 marked BOOT — ether1 on this board. The
 Pi has a single NIC, so its lab-side link goes to **ether1**, and the Pi sits
