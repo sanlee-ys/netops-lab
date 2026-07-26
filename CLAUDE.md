@@ -23,9 +23,12 @@ rebuild each time.
 
 ## How to work with me
 
-- This is design/learning work, not a bounded execution task — work in
-  small steps, explain the key decision at each one, and wait before moving
-  to the next. Don't chain hardware or config changes without a checkpoint.
+- This is design/learning work, not a bounded execution task. **Checkpoint
+  before anything that touches the router or the Pi** — config changes,
+  provisioning steps, anything that could sever access — and explain the key
+  decision at that step rather than after it. Never chain two of those
+  together. Ordinary repo work (docs, ADRs, scripts that don't run against
+  hardware) doesn't need a checkpoint per step; do the batch and report.
 - When there's a real design choice (RouterOS config structure, how the
   agent talks to the router, what the self-lockout experiment measures),
   surface it and ask rather than silently picking.
@@ -36,10 +39,8 @@ rebuild each time.
   *what* — this lab is as much about San relearning networking fundamentals
   as it is about the artifact.
 
+<!-- shared:links-verify v1 -->
 ## Links — verify before sending (hard rule)
 
-Links given in chat must resolve: **full
-`github.com/<owner>/<repo>/blob/<ref>/<path>` URLs only**, **verify the path
-exists on the ref before sending** (unverified → say so), and **branch links
-are perishable** (prefer `main` once merged). Full rule + rationale:
-[claude-ops `conventions/links-verify.md`](https://github.com/sanlee-ys/claude-ops/blob/main/conventions/links-verify.md).
+Links given in chat must resolve: **full `github.com/<owner>/<repo>/blob/<ref>/<path>` URLs only**, **verify the path exists on the ref before sending** (unverified → say so), and **branch links are perishable** (prefer `main` once merged). Full rule + rationale: [claude-ops `conventions/links-verify.md`](https://github.com/sanlee-ys/claude-ops/blob/main/conventions/links-verify.md).
+<!-- /shared:links-verify -->
