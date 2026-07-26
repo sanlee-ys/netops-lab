@@ -1,0 +1,5 @@
+# RouterOS scripts are consumed by the router (and by netinstall-cli on Linux),
+# not by Windows tooling. Git's autocrlf would hand them out with CRLF endings
+# on this machine, which is a needless variable to introduce into a mechanism
+# whose only trigger is a device wipe. Pin them to LF.
+*.rsc text eol=lf
