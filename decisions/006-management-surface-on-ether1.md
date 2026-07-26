@@ -84,9 +84,20 @@ therefore observable from the Pi and recoverable from the PC, without a
 Netinstall and without physical access beyond being at the desk.
 
 **4. The Pi authenticates with an SSH public key carried in the script
-itself.** A public key is not a secret, so it can be committed to this public
-repository and the provisioning script stays self-contained — no credential
-has to be injected at provision time and none enters git.
+itself, and password login is explicitly disabled.** A public key is not a
+secret, so it can be committed to this public repository and the provisioning
+script stays self-contained — no credential has to be injected at provision
+time and none enters git.
+
+`/ip ssh set always-allow-password-login=no` is written explicitly rather than
+inherited from whatever the default happens to be. The provisioned baseline
+should not be ambiguous about the one path into this router; ambiguity in the
+management path is the thing this ADR exists to remove. Ordering inside the
+script is load-bearing — the key import must precede it, since disabling
+password login before a working key is attached is itself a self-lockout.
+
+Losing the key costs a Netinstall, which is the harness being built anyway
+rather than a disaster. That is what makes key-only affordable here.
 
 **5. IPv6 gets a minimal input guard, and no management exception.**
 

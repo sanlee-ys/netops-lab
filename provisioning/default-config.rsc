@@ -179,16 +179,29 @@ set discover-interface-list=LAN
 # credential enters git.
 #
 # Key generated on goguma with: ssh-keygen -t ed25519 -C "goguma-lab"
-# TODO: replace the placeholder below with the real contents of
-#       ~/.ssh/id_ed25519.pub.
 #
 # The three lines below are VERIFIED on 7.20.8 — see header note 1. Note the
 # extension: `file print file=pi-key` creates pi-key.txt, which is the name
 # both following lines must reference.
 
 /file print file=pi-key
-/file set [find name="pi-key.txt"] contents="ssh-ed25519 AAAA_REPLACE_ME goguma-lab"
+/file set [find name="pi-key.txt"] contents="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGZ93ZTGZl9yxO715yaNraiEhzMDuRJJrQEgc26a8k4t goguma-lab"
 /user ssh-keys import public-key-file=pi-key.txt user=admin
+
+# Key-only authentication, stated explicitly rather than inherited from a
+# default. The provisioned baseline should not be ambiguous about the one path
+# into this router — ambiguity in the management path is what decisions/006
+# exists to remove.
+#
+# ORDER MATTERS: this must follow the import above. Disabling password login
+# before a working key is attached is a self-lockout, which would be a poor way
+# to begin a lab about self-lockout.
+#
+# If the key is ever lost, recovery is Netinstall — the harness this lab is
+# building anyway, rather than a disaster.
+
+/ip ssh
+set always-allow-password-login=no
 
 # --- Arm the next Netinstall cycle -------------------------------------------
 # decisions/005: arming happens at provision time, not at wipe time. The command
@@ -204,6 +217,5 @@ set boot-device=try-ethernet-once-then-nand
 # 1. The admin password after netinstall. Unknown until we run one — see header
 #    note 2. If a fresh install demands an interactive password change on first
 #    login, this file needs a /user set line to keep provisioning unattended.
-# 2. The placeholder public key above must be replaced with goguma's real one.
-# 3. Nothing in this file has been applied to a device. The ssh-key sequence is
+# 2. Nothing in this file has been applied to a device. The ssh-key sequence is
 #    verified in isolation; the file as a whole is not.
