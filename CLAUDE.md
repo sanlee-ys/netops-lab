@@ -39,6 +39,26 @@ rebuild each time.
   *what* — this lab is as much about San relearning networking fundamentals
   as it is about the artifact.
 
+## Machines
+
+Three surfaces touch this repo and none of them can see the others' state, so
+the split is recorded here rather than re-derived every session:
+
+- **The PC commits.** It holds the git identity, SSH commit signing, and `gh`.
+  Anything that ends in a branch and a PR happens there.
+- **The Pi touches hardware** — Netinstall, the router, the wipe cycle, per
+  [decisions/005](decisions/005-pi-as-ztp-host.md) — and hosts long-running
+  detached agent sessions under `herdr`.
+- **The Pi deliberately has no git identity.** It is not configured to commit,
+  and that is the design rather than an oversight: work done there is reported
+  back and committed from the PC. Don't "fix" it by setting `user.email` on the
+  Pi. That would hand an agent path with no audit trail the ability to write
+  history.
+
+`herdr` on the Pi is used for session persistence only. Its `done` state and its
+`agent prompt` call are not dependable — see claude-ops
+[ADR-005](https://github.com/sanlee-ys/claude-ops/blob/main/decisions/ADR-005-herdr-persistence-not-agent-awareness.md).
+
 <!-- shared:links-verify v1 -->
 ## Links — verify before sending (hard rule)
 
