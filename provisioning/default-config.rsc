@@ -21,19 +21,31 @@
 #   ether2-5      bridge, 192.168.88.1/24, DHCP server — lab-facing LAN, San's PC
 #
 # ---------------------------------------------------------------------------
-# UNVERIFIED — must be tested on the live router before this file is trusted
+# Verification status — read before trusting any of this
 # ---------------------------------------------------------------------------
-#   1. [VERIFIED 2026-07-25 on 7.20.8] The /file print + /file set +
-#      /user ssh-keys import sequence at the bottom works as written. Tested
-#      interactively on the running router rather than first-run during a
-#      wipe. /user ssh-keys print showed the key attached to admin with the
-#      -C comment carried through as key-owner.
-#   2. What netinstall leaves the admin password as. If a fresh install
-#      demands an interactive password change on first login, key auth may not
-#      be enough to keep provisioning unattended, and this file needs a
-#      /user set line. Observe it on the first netinstall.
-#   3. The IPv6 input guard is written from the stock rules but has not been
-#      applied to a device yet.
+#   1. The /file print + /file set + /user ssh-keys import sequence near the
+#      bottom was run interactively on the live router (7.20.8, 2026-07-25) and
+#      works: /user ssh-keys print showed the key attached to admin with the -C
+#      comment carried through as key-owner.
+#
+#      Precisely what that does and does not establish: the COMMANDS work at an
+#      interactive prompt. It has NOT been shown that /file print file= behaves
+#      the same inside a default-configuration script at first boot, which is a
+#      different execution context. Confirm on the first netinstall.
+#
+#   2. The `-r -s` combination in the install line above is not confirmed. `-r`
+#      is documented as "reinstall with default configuration script" and `-s`
+#      installs a custom one; whether -s implies -r, requires it, or conflicts
+#      with it is unread. Check before the first run.
+#
+#   3. What netinstall leaves the admin password as. If a fresh install demands
+#      an interactive password change on first login, key auth may not be enough
+#      to keep provisioning unattended, and this file needs a /user set line.
+#
+#   4. The IPv6 input guard is written from the stock rules but has not been
+#      applied to a device.
+#
+#   5. The file as a whole has never been applied to anything.
 # ---------------------------------------------------------------------------
 
 # --- Lab-facing LAN: ether2-5 bridged, unchanged in spirit from stock --------
@@ -65,6 +77,11 @@ add interface=ether1 list=WAN
 # --- Addressing --------------------------------------------------------------
 # Static on both ends by necessity: the management accept rule names a source
 # address, and this script is authored before the router it configures exists.
+#
+# Note what is NOT here: stock puts a DHCP *client* on ether1, waiting for an
+# upstream lease. The thing on ether1 is the Pi, which will never serve one, so
+# the client is dropped rather than left to retry forever. This is why ether1
+# had no address at all on the factory config.
 
 /ip address
 add address=192.168.99.1/30 interface=ether1 network=192.168.99.0
@@ -105,7 +122,12 @@ add action=drop chain=input in-interface-list=!LAN \
     comment="drop all not coming from LAN"
 
 # --- Firewall: forward -------------------------------------------------------
+# The menu path is repeated rather than relying on the context set above. A
+# comment block does not reset it, so these would attach correctly either way,
+# but an implicit dependency on where the cursor happens to be is not something
+# to leave in a file whose failure mode is an unreachable router.
 
+/ip firewall filter
 add action=accept chain=forward ipsec-policy=in,ipsec \
     comment="accept in ipsec policy"
 add action=accept chain=forward ipsec-policy=out,ipsec \
@@ -214,8 +236,6 @@ set always-allow-password-login=no
 set boot-device=try-ethernet-once-then-nand
 
 # --- OPEN --------------------------------------------------------------------
-# 1. The admin password after netinstall. Unknown until we run one — see header
-#    note 2. If a fresh install demands an interactive password change on first
-#    login, this file needs a /user set line to keep provisioning unattended.
-# 2. Nothing in this file has been applied to a device. The ssh-key sequence is
-#    verified in isolation; the file as a whole is not.
+# See the "Verification status" block at the top of this file. Nothing below
+# the ssh-key sequence has been exercised anywhere, and that sequence has only
+# been exercised at an interactive prompt, not in a first-boot context.
