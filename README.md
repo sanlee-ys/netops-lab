@@ -122,8 +122,17 @@ Hardware ordered 2026-07-22, all in hand 2026-07-25.
 
 Two bring-up sessions that day. The PC is on the router's segment, and the Pi
 (`goguma`) is built — booting from NVMe, headless on wifi, EEPROM current.
-That closes the hardware substrate gate on everything below. ZTP (roadmap
-item 1) is not started.
+That closes the hardware substrate gate on everything below.
+
+Roadmap item 1 is **designed, not run**. The custom default-configuration
+script exists as a draft at
+[provisioning/default-config.rsc](provisioning/default-config.rsc), with the
+management surface it opens decided in
+[decisions/006](decisions/006-management-surface-on-ether1.md). One mechanism
+in it — installing the Pi's SSH key — has been verified on the live router at
+an interactive prompt. Nothing else in the file has been applied to a device,
+and no Netinstall has been performed. `netinstall-cli` is not yet set up on
+the Pi.
 
 ## Bring-up notes
 
