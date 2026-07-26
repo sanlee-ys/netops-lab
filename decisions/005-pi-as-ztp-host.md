@@ -35,6 +35,21 @@ aarch64. User-mode QEMU (`qemu-user-static` / `qemu-i386`) runs it without a
 full VM. Root is required either way, because BOOTP and TFTP bind privileged
 ports.
 
+**Confirmed on hardware 2026-07-25.** `file` reports the 7.20.8 build as
+`ELF 32-bit LSB executable, Intel i386, statically linked`. Two things follow.
+It is **i386**, not x86-64, so `qemu-i386-static` is the correct emulator. And
+it is **statically linked**, which removes the usual expensive part of
+user-mode emulation — no 32-bit sysroot, no `-L`, no multiarch setup. It runs
+on `goguma` under `qemu-i386-static` and prints its usage. **The PC fallback in
+decision 2 below was therefore never triggered.**
+
+The same usage output confirmed two things previously taken from
+documentation: `-sm` is absent from this build's options, matching the stated
+7.22 floor; and the only mutual exclusion declared is `-r`/`-e`, so `-r` and
+`-s` compose. Since `-r` is what applies the default configuration and `-s`
+makes that default configuration ours, `-r -s <script>` is the intended
+invocation.
+
 ## Decision
 
 **1. ZTP in this lab means Netinstall-driven provisioning.** TR-069 is not

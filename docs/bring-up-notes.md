@@ -39,6 +39,81 @@ needs an **elevated** shell.
 
 ---
 
+## 2026-07-25 — netinstall-cli on the Pi under QEMU
+
+**Host:** `goguma` (Pi 5, aarch64, Raspberry Pi OS Lite Bookworm).
+**Goal:** prove the Netinstall tool executes before anything is cabled or
+wiped. Per [decisions/005](../decisions/005-pi-as-ztp-host.md) this is the
+timebox gate — a failure here moves item 1 to the PC rather than becoming a
+QEMU debugging project.
+
+### Measure the binary, don't argue about it
+
+MikroTik's Linux Netinstall page does not state which host architectures the
+tool is built for. One command settles it, and the answer changes the plan:
+
+```bash
+file netinstall-cli
+```
+
+```
+netinstall-cli: ELF 32-bit LSB executable, Intel i386, version 1 (SYSV),
+statically linked, stripped
+```
+
+Two things matter in that line. **i386**, not x86-64 — so the emulator is
+`qemu-i386-static`, and reaching for `qemu-x86_64-static` will fail
+confusingly. And **statically linked**, which is the lucky part: the usual
+expense of user-mode QEMU is providing a 32-bit sysroot of shared libraries,
+and a static binary needs none of it. No `-L`, no multiarch, no `:i386`
+packages.
+
+### Setup
+
+```bash
+cd ~/netinstall
+wget https://download.mikrotik.com/routeros/7.20.8/netinstall-7.20.8.tar.gz
+wget https://download.mikrotik.com/routeros/7.20.8/routeros-7.20.8-arm.npk
+tar -xzf netinstall-7.20.8.tar.gz
+sudo apt install -y qemu-user-static
+```
+
+The package is `arm`, not `arm64` — the hEX refresh reports
+`architecture-name: arm` (32-bit). Installing the wrong architecture's `.npk`
+is a slow way to find that out.
+
+### Run
+
+```bash
+qemu-i386-static ./netinstall-cli
+```
+
+Printing its version and usage is the pass condition. No root needed for this
+step; root is only required for an actual install, because BOOTP and TFTP bind
+privileged ports.
+
+Debian registers binfmt handlers with `qemu-user-static`, so plain
+`./netinstall-cli` may work with no emulator prefix. Worth trying first, but
+the explicit form is what was verified here.
+
+### What the usage output settled
+
+Reading it carefully answered two questions that had been open on
+documentation alone:
+
+- **`-sm` is not in this build's options.** That matches the documented
+  RouterOS/Netinstall 7.22 floor, now confirmed rather than assumed. 7.20.8
+  does not have it.
+- **`-r` and `-s` compose.** The only mutual exclusion the tool declares is
+  `-r`/`-e`. Since the usage also says *"by default existing configuration will
+  be kept"*, `-r` is what makes the default configuration apply — and with
+  `-s`, that default configuration is ours. `-r -s <script>` is the invocation.
+
+Also note `{-i <interface> | -a <client-ip>}` is braced: one of the two is
+mandatory, not optional.
+
+---
+
 ## 2026-07-25 — Pi 5 NVMe bring-up
 
 **Hardware:** Raspberry Pi 5 8GB (`goguma`) in an Argon NEO 5 M.2 NVMe case,
