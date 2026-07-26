@@ -88,7 +88,31 @@ itself.** A public key is not a secret, so it can be committed to this public
 repository and the provisioning script stays self-contained — no credential
 has to be injected at provision time and none enters git.
 
-**5. Item 1 is designed around `-s` alone.** `-sm` is not used. Everything the
+**5. IPv6 gets a minimal input guard, and no management exception.**
+
+This closes a second back door of exactly the same shape as the MAC-Winbox
+one, and it was nearly missed. RouterOS brings up link-local IPv6
+automatically, and with no v6 filter, input is accept-by-default. An agent
+could therefore destroy every IPv4 management path in this ADR and the Pi
+would still reach the router over IPv6 link-local on ether1. That failure
+would not be visible as a broken experiment; it would silently invalidate one.
+
+The guard is four rules on the input chain — accept established/related/
+untracked, drop invalid, accept ICMPv6, drop anything not from LAN — rather
+than a reproduction of stock's full set. ICMPv6 is accepted because IPv6
+genuinely depends on it for neighbour discovery and path MTU, so dropping it
+produces confusing half-broken behaviour instead of clean denial.
+
+Deliberately absent: any v6 equivalent of the ether1 management accept. IPv6
+is filtered and available for diagnostics; it is not a management path. The
+Pi's only way in remains the single IPv4 SSH rule.
+
+The accepted gap: this is an input guard only, so the v6 forward chain stays
+accept-by-default. The risk is low because the router has no IPv6 upstream and
+no v6 addressing beyond link-local, so there is nothing to forward. It is
+recorded as a known gap rather than left to be discovered.
+
+**6. Item 1 is designed around `-s` alone.** `-sm` is not used. Everything the
 script must do — addressing, the firewall exception, arming the next boot — is
 default-configuration work, so the 7.22 floor never applies and 7.20.8 does
 not block the gating deliverable.
@@ -127,10 +151,9 @@ changes — they simply stop being properties of the provisioned baseline.
   internet uplink has to come out of the bridge. ether1's WAN-list membership
   is therefore a forwarding policy and a framing, not a claim that the
   internet arrives there. Stated here so it does not read as confused later.
-- **IPv6.** Stock ships a substantial IPv6 filter set. The script does not yet
-  reproduce it, and omitting it silently would leave IPv6 input
-  accept-by-default. Either mirror the stock set or disable IPv6 outright —
-  undecided, and it must be settled before the script is trusted.
+- **The IPv6 forward chain**, left accept-by-default by decision 5's input-only
+  guard. Revisit if the lab ever gains an IPv6 upstream, at which point it
+  stops being moot.
 
 ## Alternatives Considered
 
@@ -142,3 +165,5 @@ changes — they simply stop being properties of the provisioned baseline.
 | A /24 for the management link | Works, but implies a segment other hosts may join. The /30 documents the point-to-point intent in the addressing |
 | Password authentication for the Pi | Puts a secret on the provisioning path. Either it is committed to a public repo, or the script stops being self-contained and needs injection at provision time. A public key has neither problem |
 | Wait for 7.22 to use `-sm` | Buys nothing item 1 needs, and would put a RouterOS branch migration ahead of the gating deliverable |
+| Mirror stock's full IPv6 filter set | Most faithful, but it is roughly twenty rules the lab never exercises, and unexercised rules are surface to get subtly wrong rather than fidelity earned |
+| Disable IPv6 outright | The most certain way to close the link-local back door, but it closes a protocol family to make an experiment easier — the kind of abstraction [decisions/001](001-hardware-substrate-scope.md) says this lab exists to avoid |

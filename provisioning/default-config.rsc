@@ -23,15 +23,17 @@
 # ---------------------------------------------------------------------------
 # UNVERIFIED — must be tested on the live router before this file is trusted
 # ---------------------------------------------------------------------------
-#   1. The /file print + /file set + /user ssh-keys import sequence at the
-#      bottom. Partly forum-sourced, not confirmed against the manual. Test it
-#      interactively on the running router first: a mechanism whose only
-#      trigger is a wipe is the worst possible place for a first run.
+#   1. [VERIFIED 2026-07-25 on 7.20.8] The /file print + /file set +
+#      /user ssh-keys import sequence at the bottom works as written. Tested
+#      interactively on the running router rather than first-run during a
+#      wipe. /user ssh-keys print showed the key attached to admin with the
+#      -C comment carried through as key-owner.
 #   2. What netinstall leaves the admin password as. If a fresh install
 #      demands an interactive password change on first login, key auth may not
 #      be enough to keep provisioning unattended, and this file needs a
 #      /user set line. Observe it on the first netinstall.
-#   3. IPv6 is not handled at all yet — see OPEN at the bottom.
+#   3. The IPv6 input guard is written from the stock rules but has not been
+#      applied to a device yet.
 # ---------------------------------------------------------------------------
 
 # --- Lab-facing LAN: ether2-5 bridged, unchanged in spirit from stock --------
@@ -117,6 +119,38 @@ add action=drop chain=forward connection-state=invalid \
 add action=drop chain=forward connection-state=new connection-nat-state=!dstnat \
     in-interface-list=WAN comment="drop all from WAN not DSTNATed"
 
+# --- Firewall: IPv6 input ----------------------------------------------------
+# This closes a back door, and it is the same back door MAC-Winbox was.
+#
+# RouterOS brings up link-local IPv6 automatically. Without a v6 filter, input
+# is accept-by-default, so an agent could destroy every IPv4 management path
+# above and the Pi would still reach this router over IPv6 link-local on
+# ether1. That would not break item 4 visibly — it would quietly invalidate it.
+#
+# Note what is deliberately absent: there is NO v6 equivalent of the ether1
+# management accept. IPv6 is filtered and reachable-for-diagnostics, but it is
+# not a management path. The Pi's only way in is the single IPv4 SSH rule.
+#
+# ICMPv6 is accepted because v6 genuinely depends on it (neighbour discovery,
+# path MTU); dropping it produces confusing half-broken behaviour rather than
+# clean denial. Same caveat as ICMP above: a successful v6 ping proves nothing
+# about management.
+#
+# Scope accepted knowingly (decisions/006): this is an input guard only. The v6
+# forward chain stays accept-by-default. Low risk here because the router has
+# no IPv6 upstream and no v6 addressing beyond link-local, so there is nothing
+# to forward — but it is a gap, not an oversight, and it is written down.
+
+/ipv6 firewall filter
+add action=accept chain=input connection-state=established,related,untracked \
+    comment="accept established,related,untracked"
+add action=drop chain=input connection-state=invalid \
+    comment="drop invalid"
+add action=accept chain=input protocol=icmpv6 \
+    comment="accept ICMPv6"
+add action=drop chain=input in-interface-list=!LAN \
+    comment="drop everything else not coming from LAN"
+
 # --- NAT ---------------------------------------------------------------------
 # Stock masquerades out the WAN list. Omitted on purpose: with ether1 as the Pi
 # link and no upstream attached, that rule would only ever NAT router-to-Pi
@@ -144,11 +178,13 @@ set discover-interface-list=LAN
 # ships in a public repo. Nothing has to be injected at provision time and no
 # credential enters git.
 #
-# TODO: replace the placeholder with goguma's actual public key:
-#   ssh-keygen -t ed25519 -C "goguma-lab"    (on the Pi)
-#   cat ~/.ssh/id_ed25519.pub
+# Key generated on goguma with: ssh-keygen -t ed25519 -C "goguma-lab"
+# TODO: replace the placeholder below with the real contents of
+#       ~/.ssh/id_ed25519.pub.
 #
-# UNVERIFIED — see header note 1. Test interactively before relying on it.
+# The three lines below are VERIFIED on 7.20.8 — see header note 1. Note the
+# extension: `file print file=pi-key` creates pi-key.txt, which is the name
+# both following lines must reference.
 
 /file print file=pi-key
 /file set [find name="pi-key.txt"] contents="ssh-ed25519 AAAA_REPLACE_ME goguma-lab"
@@ -165,8 +201,9 @@ set discover-interface-list=LAN
 set boot-device=try-ethernet-once-then-nand
 
 # --- OPEN --------------------------------------------------------------------
-# IPv6. Stock ships a substantial IPv6 filter set including an input drop for
-# anything not from LAN. This file does not reproduce it, which would leave
-# IPv6 input accept-by-default — a hole that undoes the point of everything
-# above. Decide before trusting this script: mirror the stock IPv6 set, or
-# disable IPv6 outright. Tracked in decisions/006 under Deferred.
+# 1. The admin password after netinstall. Unknown until we run one — see header
+#    note 2. If a fresh install demands an interactive password change on first
+#    login, this file needs a /user set line to keep provisioning unattended.
+# 2. The placeholder public key above must be replaced with goguma's real one.
+# 3. Nothing in this file has been applied to a device. The ssh-key sequence is
+#    verified in isolation; the file as a whole is not.
