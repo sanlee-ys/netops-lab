@@ -13,6 +13,13 @@ reliable wipe-to-provisioned cycle is the experimental harness that makes the
 later agent experiment repeatable. Without it, every lockout is a manual
 rebuild.
 
+**Write-up:** [Zero-Touch Provisioning](https://sanlee.me/projects/netops-lab.html)
+— what was built, the finding that every real barrier to running it unattended
+was on the *host* rather than the device, and what it explicitly does not
+establish. This repo is the working record behind it: decisions in
+[decisions/](decisions/), and what actually broke in
+[docs/bring-up-notes.md](docs/bring-up-notes.md).
+
 ## Hardware
 
 | Device | Role |
