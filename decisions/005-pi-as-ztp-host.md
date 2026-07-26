@@ -35,6 +35,21 @@ aarch64. User-mode QEMU (`qemu-user-static` / `qemu-i386`) runs it without a
 full VM. Root is required either way, because BOOTP and TFTP bind privileged
 ports.
 
+**Confirmed on hardware 2026-07-25.** `file` reports the 7.20.8 build as
+`ELF 32-bit LSB executable, Intel i386, statically linked`. Two things follow.
+It is **i386**, not x86-64, so `qemu-i386-static` is the correct emulator. And
+it is **statically linked**, which removes the usual expensive part of
+user-mode emulation — no 32-bit sysroot, no `-L`, no multiarch setup. It runs
+on `goguma` under `qemu-i386-static` and prints its usage. **The PC fallback in
+decision 2 below was therefore never triggered.**
+
+The same usage output confirmed two things previously taken from
+documentation: `-sm` is absent from this build's options, matching the stated
+7.22 floor; and the only mutual exclusion declared is `-r`/`-e`, so `-r` and
+`-s` compose. Since `-r` is what applies the default configuration and `-s`
+makes that default configuration ours, `-r -s <script>` is the intended
+invocation.
+
 ## Decision
 
 **1. ZTP in this lab means Netinstall-driven provisioning.** TR-069 is not
@@ -71,6 +86,45 @@ reset button with correct timing.
 the command requires a reachable, running device. If an agent later leaves
 the router running-but-unreachable — precisely the failure item 4 exists to
 study — there is no opportunity to arm it after the fact.
+
+**Device-mode precondition, discovered on hardware 2026-07-25.** The arming
+command above fails with `not allowed by device-mode` on a factory board. The
+hEX ships in **`mode: home`**, the most restrictive mode, and
+`/system routerboard settings` is gated behind a `routerboard` flag that is
+off by default in every mode. Enabling it is not a configuration change that
+can be made over SSH alone:
+
+```
+/system device-mode update routerboard=yes
+```
+
+then **physical confirmation within 5 minutes** — a power cycle or a button
+press — after which the device reboots itself. A power cycle is preferable on
+this board: its only button is the reset button, and a mistimed hold there is
+a configuration reset.
+
+Two things this established that documentation left ambiguous. Individual
+flags **can** be overridden on top of a mode (`mode: home` with
+`routerboard: yes` is a valid state on a hEX); one source suggested the flag
+was settable only in ROSE mode, and that is not what the device does. And
+`mode: home` also has `scheduler`, `fetch`, `romon`, `sniffer` and `container`
+off, which reaches well past this ADR — item 4 is netwatch-driven, and
+`romon: no` is silently closing a third layer-2 back door alongside MAC-Winbox
+and IPv6 link-local.
+
+**The open question this leaves is whether the `routerboard` flag survives a
+Netinstall.** If it persists, enabling it is a one-time bootstrap and the
+provisioning script's arming line works on every subsequent cycle. If
+Netinstall resets it, then on 7.20.8 every cycle needs a manual device-mode
+update plus a power cycle before the router can be armed — which is worse than
+the reset-button tedium this decision rejected, and moving to 7.22 (where
+Netinstall can configure device-mode directly) stops being optional. Observe
+it on the first Netinstall.
+
+One piece of luck worth keeping deliberate: the arming command is the **last**
+statement in `provisioning/default-config.rsc`. If it aborts the script under
+device-mode denial, everything else has already applied. That ordering was
+incidental when written and is now load-bearing.
 
 **Topology consequence.** Netinstall boots from the first port or a port
 marked BOOT — ether1 on this board. The

@@ -39,6 +39,146 @@ needs an **elevated** shell.
 
 ---
 
+## 2026-07-25 — device-mode blocks arming on a factory board
+
+**Symptom.** On a factory hEX refresh, the command ADR-005 relies on to arm the
+next Netinstall cycle simply refuses:
+
+```
+/system routerboard settings set boot-device=try-ethernet-once-then-nand
+failure: not allowed by device-mode
+```
+
+**What it means.** RouterOS device-mode gates whole feature groups, and
+`/system routerboard settings` sits behind a flag called `routerboard` that is
+**off by default in every mode**. This board ships in `mode: home`, the most
+restrictive one. Check what you actually have before doing anything:
+
+```
+/system device-mode print
+```
+
+A factory hEX comes back with `mode: home` and, notably, `scheduler: no`,
+`fetch: no`, `romon: no`, `sniffer: no`, `container: no`, `routerboard: no`.
+That list is worth reading in full once — it is not only about boot-device.
+
+**Fix.** Enable the single flag, then confirm physically:
+
+```
+/system device-mode update routerboard=yes
+```
+
+The device replies with a countdown — roughly *"turn off power or reboot by
+pressing reset or mode button in 4m55s to activate"* — and the timer runs on
+the **device**, not in your terminal. Don't quit the display first; just pull
+the power. The router reboots itself to apply, so allow 30–60s before SSH
+returns.
+
+**Use the power cycle, not the button.** The documentation offers either, but
+this board's only button is the reset button, and a mistimed hold there is a
+configuration reset. The power cycle is unambiguous.
+
+Verify, then retry the original command:
+
+```
+/system device-mode print          # want routerboard: yes
+/system routerboard settings set boot-device=try-ethernet-once-then-nand
+/system routerboard settings print
+```
+
+**Two things this settled that the docs left ambiguous.** Individual flags can
+be overridden on top of a mode — `mode: home` with `routerboard: yes` is a
+valid state, despite one source suggesting the flag was settable only in ROSE
+mode. And the mode is not cosmetic: `scheduler: no` and `fetch: no` will matter
+to anything script-driven built on this box later.
+
+**One thing worth taking as good news.** `romon: no` means RoMON — MikroTik's
+layer-2 management overlay, reachable without IP — is off by default. That is a
+third out-of-band path of the same class as MAC-Winbox and IPv6 link-local,
+closed for free by the restrictive shipping mode. Don't enable it absent-mindedly.
+
+**Still open:** whether the `routerboard` flag survives a Netinstall. If it
+does, this is a one-time bootstrap. If it does not, every wipe cycle needs this
+dance repeated with a power cycle, and RouterOS 7.22 — where Netinstall can set
+device-mode itself via `-sm` — becomes necessary rather than optional.
+
+---
+
+## 2026-07-25 — netinstall-cli on the Pi under QEMU
+
+**Host:** `goguma` (Pi 5, aarch64, Raspberry Pi OS Lite Bookworm).
+**Goal:** prove the Netinstall tool executes before anything is cabled or
+wiped. Per [decisions/005](../decisions/005-pi-as-ztp-host.md) this is the
+timebox gate — a failure here moves item 1 to the PC rather than becoming a
+QEMU debugging project.
+
+### Measure the binary, don't argue about it
+
+MikroTik's Linux Netinstall page does not state which host architectures the
+tool is built for. One command settles it, and the answer changes the plan:
+
+```bash
+file netinstall-cli
+```
+
+```
+netinstall-cli: ELF 32-bit LSB executable, Intel i386, version 1 (SYSV),
+statically linked, stripped
+```
+
+Two things matter in that line. **i386**, not x86-64 — so the emulator is
+`qemu-i386-static`, and reaching for `qemu-x86_64-static` will fail
+confusingly. And **statically linked**, which is the lucky part: the usual
+expense of user-mode QEMU is providing a 32-bit sysroot of shared libraries,
+and a static binary needs none of it. No `-L`, no multiarch, no `:i386`
+packages.
+
+### Setup
+
+```bash
+cd ~/netinstall
+wget https://download.mikrotik.com/routeros/7.20.8/netinstall-7.20.8.tar.gz
+wget https://download.mikrotik.com/routeros/7.20.8/routeros-7.20.8-arm.npk
+tar -xzf netinstall-7.20.8.tar.gz
+sudo apt install -y qemu-user-static
+```
+
+The package is `arm`, not `arm64` — the hEX refresh reports
+`architecture-name: arm` (32-bit). Installing the wrong architecture's `.npk`
+is a slow way to find that out.
+
+### Run
+
+```bash
+qemu-i386-static ./netinstall-cli
+```
+
+Printing its version and usage is the pass condition. No root needed for this
+step; root is only required for an actual install, because BOOTP and TFTP bind
+privileged ports.
+
+Debian registers binfmt handlers with `qemu-user-static`, so plain
+`./netinstall-cli` may work with no emulator prefix. Worth trying first, but
+the explicit form is what was verified here.
+
+### What the usage output settled
+
+Reading it carefully answered two questions that had been open on
+documentation alone:
+
+- **`-sm` is not in this build's options.** That matches the documented
+  RouterOS/Netinstall 7.22 floor, now confirmed rather than assumed. 7.20.8
+  does not have it.
+- **`-r` and `-s` compose.** The only mutual exclusion the tool declares is
+  `-r`/`-e`. Since the usage also says *"by default existing configuration will
+  be kept"*, `-r` is what makes the default configuration apply — and with
+  `-s`, that default configuration is ours. `-r -s <script>` is the invocation.
+
+Also note `{-i <interface> | -a <client-ip>}` is braced: one of the two is
+mandatory, not optional.
+
+---
+
 ## 2026-07-25 — Pi 5 NVMe bring-up
 
 **Hardware:** Raspberry Pi 5 8GB (`goguma`) in an Argon NEO 5 M.2 NVMe case,

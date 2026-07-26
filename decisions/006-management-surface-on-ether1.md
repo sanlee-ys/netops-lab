@@ -147,13 +147,20 @@ changes — they simply stop being properties of the provisioned baseline.
 
 ## Deferred
 
-- **`-sm` and device-mode.** MikroTik's stated use for `-sm` is device-mode
-  and protected-routerboot. RouterOS 7 gates `scheduler` and `fetch` behind
-  device-mode, and changing device-mode requires a physical power cycle within
-  a timeout. Item 4 is netwatch-driven and may well collide with this. Revisit
-  when item 4 is scoped, which is also when moving off the 7.20 long-term
-  branch to reach the 7.22 floor becomes a real question rather than a
-  hypothetical.
+- **`-sm` and device-mode.** ~~Revisit when item 4 is scoped.~~ **This
+  deferral was wrong, and it was corrected the same day.** Device-mode does not
+  wait for item 4: the hEX ships in `mode: home` with the `routerboard` flag
+  off, so ADR-005's arming command fails on a factory board, which lands
+  squarely in item 1. See [decisions/005](005-pi-as-ztp-host.md) for the
+  mechanism and the workaround used. The genuinely open part is whether the
+  flag survives a Netinstall; if it does not, the 7.22 upgrade becomes
+  required rather than optional, because 7.22 is where Netinstall can set
+  device-mode directly via `-sm`.
+
+  Kept as a Deferred entry rather than deleted, because the lesson is the
+  filing error: "this only affects a later item" was an assumption, not a
+  finding, and it was made about the one subsystem whose whole purpose is
+  blocking things.
 - **Masquerade.** Stock srcnats out the WAN list. With ether1 as the Pi link
   and no upstream attached, that rule would only ever NAT router-to-Pi
   traffic, which is not wanted. It is left out of the script and comes back
