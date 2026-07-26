@@ -39,6 +39,150 @@ needs an **elevated** shell.
 
 ---
 
+## 2026-07-26 — first Netinstall, end to end
+
+Factory-blank to fully configured on **one power cycle**. No button hold, no
+console, no serial adapter. This is roadmap item 1's core claim demonstrated
+rather than argued.
+
+### The command, as run
+
+```bash
+cd ~/netinstall
+sudo qemu-i386-static ./netinstall-cli -i eth0 -r \
+    -s ~/netops-lab/provisioning/default-config.rsc routeros-7.20.8-arm.npk
+```
+
+**`-i eth0` is a safety flag, not a tidiness one.** netinstall-cli runs its own
+BOOTP server. The Pi is dual-homed onto the house network, and an unbound
+server would answer on `wlan0` as well — a rogue BOOTP service on the LAN the
+household actually uses. Bind it to the lab link.
+
+`sudo` because BOOTP and TFTP need privileged ports. `-r` applies the default
+configuration and `-s` makes that configuration ours; the two compose, which
+the usage text implied and this run confirmed.
+
+### Output of a good run
+
+```
+Waiting for Link-UP on eth0
+Using client IP 192.168.99.1
+Waiting for RouterBOARD...
+Assigned 192.168.99.1 to D0:EA:11:BE:0D:B2
+Booting device ... into setup mode
+Formatting device ...
+Sending packages to device ...
+Packages and configuration script sent to device ...
+Rebooting device ...
+Successfully finished installing device ...
+```
+
+Start the server first, *then* power-cycle the router. With
+`boot-device=try-ethernet-once-then-nand` already armed there is no button
+timing involved — the board offers itself on boot and falls through to NAND if
+nothing answers.
+
+### Two failure modes hit on the way, both cheap
+
+**`Invalid user script path`.** netinstall-cli validates the script path
+*before* touching the router. Worth appreciating rather than just fixing: a
+tool that opened the flash session first and then discovered it couldn't read
+the script would leave a half-wiped device.
+
+**`NO-CARRIER` on the Pi with the address configured correctly.** `nmcli` will
+happily configure an address on an unplugged interface, so a correct-looking
+`ip addr` proves nothing about the link. Check `ip -br link` for `UP`, and see
+the lab-link checklist at the top of this file if it stays down. In this case
+the cause was that the cable had not been run yet.
+
+### Static address on the Pi
+
+Bookworm uses NetworkManager, so this is `nmcli` and not `dhcpcd.conf`:
+
+```bash
+sudo nmcli con add type ethernet ifname eth0 con-name lab \
+    ipv4.method manual ipv4.addresses 192.168.99.2/30
+sudo nmcli con up lab
+```
+
+**No gateway and no DNS, deliberately.** That is the Pi-side counterpart of
+pinning the PC's interface metric: with no gateway defined, the lab link cannot
+take the default route away from wifi, so the SSH session you are working in
+survives. Confirm before wiping anything:
+
+```bash
+ip route show default        # must still be via wlan0
+```
+
+### Verifying afterwards, in the right order
+
+`ping` first, but **do not read a successful ping as success.** The provisioning
+script accepts ICMP with no interface restriction, so it answers whether or not
+the management rule is correct. It only proves addressing came up.
+
+The real test is one command, because it exercises the entire chain at once —
+addressing, the firewall accept landing above the `!LAN` drop, the SSH key
+import having run inside a first-boot script, and password login being off:
+
+```bash
+ssh admin@192.168.99.1        # from goguma, NOT from the PC
+```
+
+**From the PC this times out, and that is correct.** The PC sits on
+`192.168.88.x`; the management rule accepts only `in-interface=ether1` with
+`src-address=192.168.99.2`, and the PC has no route to `192.168.99.0/30` at
+all. *Timed out* rather than *refused* is the tell that packets had nowhere to
+go rather than being rejected.
+
+Then confirm the config is ours:
+
+```
+/system device-mode print          # routerboard: yes
+/system routerboard settings print # boot-device: try-ethernet-once-then-nand
+/ip address print                  # 192.168.99.1/30 and 192.168.88.1/24
+/ip firewall filter print          # management accept ABOVE the !LAN drop
+/ipv6 firewall filter print        # four input rules ending in the !LAN drop
+/ip ssh print                      # always-allow-password-login: no
+/ip firewall nat print             # empty
+/user ssh-keys print
+```
+
+### The finding that mattered most
+
+**device-mode survives a Netinstall.** `routerboard: yes` came back intact
+after a full format. That decides a question that was going to force a
+RouterOS 7.22 upgrade: enabling the flag is a one-time per-device bootstrap,
+not something every wipe cycle has to repeat.
+
+### The gap that remains
+
+**RouterOS demands an interactive password change on first login.** Netinstall
+leaves `admin` with a blank password; key auth gets you in, and the prompt
+appears anyway. A script-driven Pi would hit the same prompt, so "zero-touch"
+still has a human in it.
+
+The decisive and untested question is whether a *non-interactive* SSH bypasses
+it:
+
+```bash
+ssh admin@192.168.99.1 "/system resource print"
+```
+
+If that runs without prompting, unattended provisioning is unaffected and the
+prompt is a cosmetic property of interactive logins.
+
+### One ambiguity, recorded rather than glossed
+
+`boot-device` came back armed — but `boot-device` is a **RouterBOOT** setting
+and may survive a NAND format independently of RouterOS. So this run cannot
+distinguish *"the script's arming line ran"* from *"the value we set by hand
+simply persisted."* Both produce the same output. It matters because a truly
+factory board starts at `routerboard: no`, where that line would fail. Settle
+it by setting `boot-device=nand`, re-running the cycle, and seeing which value
+comes back.
+
+---
+
 ## 2026-07-25 — device-mode blocks arming on a factory board
 
 **Symptom.** On a factory hEX refresh, the command ADR-005 relies on to arm the

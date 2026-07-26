@@ -124,15 +124,22 @@ Two bring-up sessions that day. The PC is on the router's segment, and the Pi
 (`goguma`) is built — booting from NVMe, headless on wifi, EEPROM current.
 That closes the hardware substrate gate on everything below.
 
-Roadmap item 1 is **designed, not run**. The custom default-configuration
-script exists as a draft at
-[provisioning/default-config.rsc](provisioning/default-config.rsc), with the
-management surface it opens decided in
-[decisions/006](decisions/006-management-surface-on-ether1.md). One mechanism
-in it — installing the Pi's SSH key — has been verified on the live router at
-an interactive prompt. Nothing else in the file has been applied to a device,
-and no Netinstall has been performed. `netinstall-cli` is not yet set up on
-the Pi.
+**Roadmap item 1 works.** On 2026-07-26 a wiped board went from
+factory-blank to fully configured on **one power cycle** — no button hold, no
+console, no serial adapter. `netinstall-cli` runs on the Pi under user-mode
+QEMU, serving BOOTP and TFTP on the lab link and pushing
+[provisioning/default-config.rsc](provisioning/default-config.rsc), whose
+management surface is decided in
+[decisions/006](decisions/006-management-surface-on-ether1.md). The Pi then
+authenticates to the provisioned router by SSH key, through the single
+firewall exception the script wrote for it.
+
+Two things are still open before item 1 is called closed, both recorded at the
+top of the script: RouterOS demands an **interactive password change on first
+login**, so "zero-touch" still has a human in it; and it is not yet established
+whether the script's arming line ran or whether `boot-device` merely persisted.
+The full run, including the failures on the way, is in
+[docs/bring-up-notes.md](docs/bring-up-notes.md).
 
 ## Bring-up notes
 
