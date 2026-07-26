@@ -3,3 +3,6 @@
 # on this machine, which is a needless variable to introduce into a mechanism
 # whose only trigger is a device wipe. Pin them to LF.
 *.rsc text eol=lf
+
+# Same reasoning: this runs on the Pi under bash. CRLF would break the shebang.
+*.sh text eol=lf
