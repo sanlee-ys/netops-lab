@@ -1,0 +1,84 @@
+name: shell
+
+# provisioning/reprovision.sh runs as root on the Pi and wipes a router. A
+# quoting or expansion bug in it surfaces on hardware, mid-wipe, rather than in
+# review — so the cheapest possible static gate is worth having. This lane is
+# deliberately only that: two linters over provisioning/*.sh. It is not a test
+# harness and should not grow into one.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: shellcheck + bash -n
+    runs-on: ubuntu-24.04
+
+    env:
+      # Pinned, not floated. shellcheck gains checks between releases, so an
+      # unpinned version means a green lane can turn red with no commit behind
+      # it — which trains people to ignore it. Bumping is a deliberate PR.
+      SC_VERSION: v0.11.0
+      SC_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # One glob, resolved once and handed to both gates via a file, and it
+      # fails loudly when it matches nothing. A lint job that silently scans
+      # zero files reports the same green as one that scanned everything —
+      # which is the failure mode this lane exists to avoid. (The list travels
+      # through a file rather than a step output so it is never interpolated
+      # into a shell command by the workflow expander.)
+      - name: Collect scripts
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          scripts=(provisioning/*.sh)
+          if [ ${#scripts[@]} -eq 0 ]; then
+            echo "::error::no files matched provisioning/*.sh — this gate would pass vacuously"
+            exit 1
+          fi
+          printf '%s\n' "${scripts[@]}" | tee "$RUNNER_TEMP/scripts.txt"
+
+      # Runs first because it is nearly free, and because a hard parse error
+      # makes shellcheck's output noise. It is a genuinely different check:
+      # this is bash's own parser rather than a reimplementation of it.
+      - name: bash -n
+        run: |
+          set -euo pipefail
+          mapfile -t scripts < "$RUNNER_TEMP/scripts.txt"
+          for f in "${scripts[@]}"; do
+            echo "bash -n $f"
+            bash -n "$f"
+          done
+
+      # From the upstream release, checksum-verified, rather than a third-party
+      # action: this pins the actual shellcheck binary (the common action
+      # defaults to "stable", which floats) and leaves the file list above as
+      # the single source of truth for what gets checked.
+      - name: Install shellcheck
+        run: |
+          set -euo pipefail
+          curl -fsSL -o sc.tar.xz \
+            "https://github.com/koalaman/shellcheck/releases/download/${SC_VERSION}/shellcheck-${SC_VERSION}.linux.x86_64.tar.xz"
+          echo "${SC_SHA256}  sc.tar.xz" | sha256sum -c -
+          tar -xJf sc.tar.xz
+          sudo install -m 0755 "shellcheck-${SC_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          rm -rf sc.tar.xz "shellcheck-${SC_VERSION}"
+          shellcheck --version
+
+      # No severity floor: style-level findings are reported and fail the job.
+      # Suppression belongs on the line that needs it, with a reason, never as
+      # a blanket threshold here.
+      - name: shellcheck
+        run: |
+          set -euo pipefail
+          mapfile -t scripts < "$RUNNER_TEMP/scripts.txt"
+          shellcheck --severity=style "${scripts[@]}"
