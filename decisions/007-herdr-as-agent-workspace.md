@@ -9,14 +9,14 @@ detection was the agent's own dim placeholder suggestion, not entered text. The
 retractions are marked in place. Decision 2 is unaffected and is now the whole
 of this ADR's caution.
 **Deciders:** San Lee
-**Related:** claude-ops
-[ADR-005](https://github.com/sanlee-ys/claude-ops/blob/main/decisions/ADR-005-herdr-persistence-not-agent-awareness.md)
+**Related:** agent-ops
+[ADR-005](https://github.com/sanlee-ys/agent-ops/blob/main/decisions/ADR-005-herdr-persistence-not-agent-awareness.md)
 holds the general, cross-repo version of this decision — what the trial means
 for running long agent sessions anywhere. This ADR is the lab's application of
 it: what it means for a box that provisions routers. The two were written in
 parallel by two sessions that could not see each other, which is itself recorded
-in claude-ops
-[ADR-006](https://github.com/sanlee-ys/claude-ops/blob/main/decisions/ADR-006-claim-the-concern-before-working-it.md).
+in agent-ops
+[ADR-006](https://github.com/sanlee-ys/agent-ops/blob/main/decisions/ADR-006-claim-the-concern-before-working-it.md).
 Keep them in sync: a finding that changes the general rule changes this one.
 
 ## Context
