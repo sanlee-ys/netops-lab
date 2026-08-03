@@ -142,11 +142,18 @@ management surface is decided in
 authenticates to the provisioned router by SSH key, through the single
 firewall exception the script wrote for it.
 
-A repeat cycle is one command on the Pi followed by a power cycle —
+A repeat cycle is one command on the Pi followed by a reboot of the router —
 [provisioning/reprovision.sh](provisioning/reprovision.sh) — and
 `ssh lab-router "/system resource print"` then answers with no prompt of any
 kind. RouterOS does demand an interactive password change on first login, but
 it is interactive-only and a non-interactive session never meets it.
+
+That reboot does **not** have to be a power cycle. RouterBOOT runs its
+`boot-device` logic on every boot, so `ssh lab-router "/system reboot"` reaches
+Etherboot exactly as pulling the plug does — verified 2026-08-03. Combined with
+arming over SSH in the same breath, the cycle is drivable end to end from the
+Pi with nothing physical in it. The board must be armed at the moment of that
+reboot, which is the part the script does not yet do for itself.
 
 What that cost, and it is worth knowing before repeating this: the barriers to
 running unattended were not on the router at all. They were SSH host-key
@@ -156,11 +163,25 @@ than being achieved outright, and the Pi's `ssh-agent` still needs a human
 after a reboot — a limitation that lands on item 4 and is recorded in
 [decisions/006](decisions/006-management-surface-on-ether1.md).
 
-One thing remains genuinely unresolved: whether the script's arming line ran,
-or whether `boot-device` merely persisted through the format on its own. This
-board is armed either way; a *factory* board might not be. The full run,
-including the failures along the way, is in
-[docs/bring-up-notes.md](docs/bring-up-notes.md).
+**Settled 2026-08-03, and it changed the picture.** The open question was
+whether the script's arming line ran or whether `boot-device` merely persisted
+through the format. It ran — Netinstall reaches setup mode by Etherbooting,
+which *consumes* the one-shot and reverts the stored value, so persistence
+could never have explained the armed reading taken after the cycle.
+
+The finding that mattered more came with it: **the arm is single-use.** Any
+boot spends it, server listening or not, so a provisioned router offers itself
+to Netinstall for exactly one boot and then quietly stops. This board was
+already sitting at RouterBOOT's default when the question was reopened, which
+means the repeat cycle described above would not have worked without re-arming
+first. That is a real limit on the recovery path roadmap item 4 depends on, and
+it is why the cycle should arm immediately before rebooting rather than trust an
+arm set at provision time.
+
+Both were settled with a soft reboot and nothing listening, which cost one
+command rather than the wipe cycle originally proposed. The full run, including
+the failures along the way and the reasoning error that kept the question open
+for a week, is in [docs/bring-up-notes.md](docs/bring-up-notes.md).
 
 ## Bring-up notes
 

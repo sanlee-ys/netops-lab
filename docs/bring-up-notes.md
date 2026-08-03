@@ -39,6 +39,116 @@ needs an **elevated** shell.
 
 ---
 
+## Quick checklist — Netinstall starts but the board never appears
+
+1. Is the board actually armed? `ssh lab-router "/system routerboard settings
+   print"` — anything other than `try-ethernet-once-then-nand` means it will
+   not offer itself, and the server will wait forever. **The arm is spent by
+   any boot**, so a router that has restarted since it was provisioned is no
+   longer armed. See [the arm is single-use](#the-arm-is-single-use-which-the-rest-of-this-repo-did-not-account-for).
+2. Not armed and unreachable? That is the reset-button hold, per the header of
+   [reprovision.sh](../provisioning/reprovision.sh).
+3. Armed and still nothing? Check the link is `UP` and that `-i` names the lab
+   interface — see [the lab-link checklist](#quick-checklist--lab-link-wont-come-up).
+
+---
+
+## 2026-08-03 — the arming line ran, and the arm is single-use
+
+Two findings. The first closes the question this repo has carried open since
+07-26; the second corrects a claim the README, ADR-005 and `reprovision.sh` all
+make.
+
+### `try-ethernet-once-then-nand` reverts the stored value when consumed
+
+MikroTik documents that a device stops offering Etherboot after one boot. What
+it does not document — checked against the
+[RouterBOOT](https://help.mikrotik.com/docs/spaces/ROS/pages/136839241/RouterBOOT),
+[RouterBOARD](https://help.mikrotik.com/docs/spaces/ROS/pages/40992878/RouterBOARD)
+and [Netinstall](https://help.mikrotik.com/docs/spaces/ROS/pages/24805390/Netinstall)
+pages — is what happens to the *stored setting*. That is the part everything
+below turns on, and the answer is that it reverts to
+`nand-if-fail-then-ethernet`, RouterBOOT's factory default.
+
+Measured directly. No Netinstall server was listening, so the attempt falls
+through to NAND and the board boots normally — which is what makes this test
+free rather than a wipe:
+
+```bash
+pgrep -af netinstall-cli      # MUST print nothing, or this sequence is a wipe
+ssh lab-router "/system routerboard settings set boot-device=try-ethernet-once-then-nand"
+ssh lab-router "/system routerboard settings print"   # try-ethernet-once-then-nand
+ssh lab-router "/system reboot"
+ssh lab-router "/system routerboard settings print"   # nand-if-fail-then-ethernet
+```
+
+### Therefore the provisioning script's arming line ran
+
+This is the question ADR-005 and `default-config.rsc` left open, and it is
+answered by inversion rather than by another wipe cycle.
+
+The 07-26 Netinstall *required* an Etherboot to reach setup mode. That boot
+consumed the one-shot and left `boot-device` at the factory default. The board
+then rebooted into the freshly installed RouterOS, and the reading taken
+afterwards was `try-ethernet-once-then-nand`. Exactly one thing runs between
+those two moments: the custom default-configuration script. So the arming line
+ran.
+
+### The arm is single-use, which the rest of this repo did not account for
+
+A provisioned router is armed for exactly **one** boot. Any restart spends it,
+whether or not a Netinstall server was listening.
+
+This board was sitting at the factory default when this session opened, because
+a power event earlier that day restarted both it and the Pi with nothing
+serving. Router uptime `8h41m`, `uptime -s` on goguma `2026-08-03 11:01:08` —
+one event, both boxes. The empty `ssh-agent` was the same event showing through.
+
+**Consequence for the documented cycle.** "Start Netinstall on the Pi, then
+power-cycle the router" only works if the router has not rebooted since it was
+provisioned. Otherwise the board boots straight back into RouterOS and the
+server waits forever. Not hypothetical — it was this board's actual state.
+
+**Consequence for item 4, which is the one to carry forward.** ADR-005 arms at
+provision time precisely because a locked-out router cannot be armed after the
+fact, and one shot is all that case needs. But the shot is spent by any
+intervening reboot from any cause, so the recovery path is live only until the
+next restart. A lockout that follows a reboot needs the reset button, and the
+safety net item 4 leans on is thinner than ADR-005 assumed.
+
+### A soft reboot triggers Etherboot, so the cycle needs no power cycle
+
+The stored value can only revert if RouterBOOT actually performed the attempt,
+and it reverted across a plain `/system reboot` issued over SSH. RouterBOOT runs
+its `boot-device` logic on a soft reboot exactly as it does on a power cut. The
+plug was never the trigger; any boot is.
+
+`/system reboot` also returns cleanly over a non-interactive SSH with no
+confirmation prompt — the same interactive-only pattern as the forced
+first-login password change.
+
+Together those make a wipe cycle drivable end to end from the Pi: arm over SSH,
+reboot over SSH, let the waiting server catch the board. What that should do to
+`reprovision.sh` is a design question and is deliberately not answered here.
+
+### The reasoning error, which is the part worth keeping
+
+The 07-26 reading was filed as ambiguous because a competing explanation
+existed: `boot-device` is a RouterBOOT setting, and MikroTik confirms Netinstall
+"does not erase the RouterOS license key, nor does it reset RouterBOOT related
+settings" — so the hand-set value could have survived the format.
+
+Every clause of that is true, and it is still not an explanation for *this*
+reading, because the Netinstall's own Etherboot sits between the hand-setting
+and the observation, and consumes it.
+
+The alternative was checked for plausibility and never for consistency with the
+sequence that produced the observation. **A competing explanation is only
+competing if it survives the actual order of events.** The evidence was strong
+on the day it was collected and was recorded as ambiguous for a week.
+
+---
+
 ## 2026-07-26 — first Netinstall, end to end
 
 Factory-blank to fully configured on **one power cycle**. No button hold, no
@@ -225,6 +335,10 @@ ssh lab-router "/system resource print"
 
 ### One ambiguity, recorded rather than glossed
 
+**RESOLVED 2026-08-03 — the arming line ran. See
+[the 08-03 entry](#2026-08-03--the-arming-line-ran-and-the-arm-is-single-use).
+The reasoning below is kept because the error in it is the useful part.**
+
 `boot-device` came back armed — but `boot-device` is a **RouterBOOT** setting
 and may survive a NAND format independently of RouterOS. So this run cannot
 distinguish *"the script's arming line ran"* from *"the value we set by hand
@@ -232,6 +346,11 @@ simply persisted."* Both produce the same output. It matters because a truly
 factory board starts at `routerboard: no`, where that line would fail. Settle
 it by setting `boot-device=nand`, re-running the cycle, and seeing which value
 comes back.
+
+The flaw: the two explanations do *not* both produce this output. Netinstall
+reaches setup mode by Etherbooting, which consumes the one-shot and resets the
+value — so persistence cannot survive the sequence, and the proposed wipe test
+was never needed. A soft reboot with nothing listening settled it for free.
 
 ---
 

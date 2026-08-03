@@ -2,10 +2,26 @@
 #
 # netops-lab — one wipe-to-provisioned cycle.
 #
-# Run on goguma. Start this, then power-cycle the router. That is the entire
+# Run on goguma. Start this, then reboot the router. That is the entire
 # procedure: no button hold, no console, no serial adapter — provided the board
-# is armed with boot-device=try-ethernet-once-then-nand, which the provisioning
-# script sets and which survives a Netinstall.
+# is armed with boot-device=try-ethernet-once-then-nand.
+#
+# CHECK THAT IT IS ARMED. Do not assume (2026-08-03):
+#     ssh lab-router "/system routerboard settings print"
+#
+# The arm is a ONE-SHOT. The provisioning script sets it, and it survives the
+# NAND format — but the next boot CONSUMES it and RouterBOOT reverts the value
+# to its default, whether or not a server was listening. So a board that has
+# restarted since it was provisioned is no longer armed, and this script will
+# sit waiting forever against a router that boots straight back into RouterOS.
+# Re-arm over SSH first; that is one command and it needs the router reachable.
+#
+# The reboot does NOT have to be a power cycle. RouterBOOT runs its boot-device
+# logic on every boot, so `ssh lab-router "/system reboot"` reaches Etherboot
+# exactly as pulling the plug does, and returns cleanly over a non-interactive
+# SSH. Arming and rebooting from inside this script would make the cycle fully
+# unattended; that is a deliberate open design question, not an oversight.
+# See docs/bring-up-notes.md and decisions/005.
 #
 # Why this exists: decisions/005 wants the whole cycle driven from one box,
 # because a wipe that takes a remembered command line is a wipe that stops
@@ -172,7 +188,7 @@ decisions/006.
 Worth checking on the first run after any change to default-config.rsc:
 
     ssh lab-router "/ip firewall filter print"    # management accept ABOVE the !LAN drop
-    ssh lab-router "/system routerboard settings print"   # still armed for next cycle
+    ssh lab-router "/system routerboard settings print"   # armed — for ONE boot only
 
 A successful ping proves nothing here — the config accepts ICMP with no
 interface restriction, so it answers whether or not management works.
