@@ -54,11 +54,21 @@
 #   automation turned out to be on the Pi (host-key verification and the key
 #   passphrase) — see docs/bring-up-notes.md and decisions/006.
 #
-#   1. Whether the arming line at the bottom actually ran, or whether
-#      boot-device merely persisted. boot-device is a RouterBOOT setting and may
-#      survive a NAND format on its own, so this run cannot distinguish the two.
-#      Settle it by setting boot-device=nand, re-running the cycle, and seeing
-#      which value comes back.
+#   [RESOLVED 2026-08-03] Whether the arming line at the bottom actually ran.
+#   IT RAN. Netinstall reaches setup mode by Etherbooting, which CONSUMES
+#   boot-device=try-ethernet-once-then-nand and reverts the stored value to
+#   RouterBOOT's default (nand-if-fail-then-ethernet). So the armed value read
+#   after the 07-26 cycle could only have been written by this file — the
+#   "it merely persisted" alternative does not survive the sequence. Measured
+#   with a soft reboot and nothing listening; see docs/bring-up-notes.md.
+#
+#   CARRIED FORWARD, and it is the more important half: THE ARM IS SINGLE-USE.
+#   Any boot spends it, server present or not. A provisioned router is armed for
+#   exactly one boot, so a board that has restarted since provisioning will NOT
+#   offer itself to Netinstall. The line below is still correct and still worth
+#   keeping — it is what makes the one post-provision shot available — but it is
+#   not a standing guarantee, and anything that depends on the board being armed
+#   must check rather than assume.
 # ---------------------------------------------------------------------------
 
 # --- Lab-facing LAN: ether2-5 bridged, unchanged in spirit from stock --------
@@ -254,14 +264,16 @@ set always-allow-password-login=no
 # aborts the script, everything above has already applied. Do not append
 # anything below it.
 #
-# Whether the flag survives a Netinstall is unknown — see decisions/005. If it
-# does not, this line fails on every cycle and the 7.22 upgrade (where
-# Netinstall can set device-mode via -sm) becomes required rather than deferred.
+# The flag DOES survive a Netinstall (verified 2026-07-26), so this is a
+# one-time per-device bootstrap and the 7.22 upgrade stays deferred.
+#
+# VERIFIED 2026-08-03 that this line runs. What it buys is narrower than it
+# looks: the arm is a ONE-SHOT that the next boot consumes, so this grants
+# exactly one Netinstall opportunity per provisioning. That is the right
+# mechanism for the lockout case — a router that is unreachable cannot be armed
+# after the fact, and one shot is all that case needs — but it is not a durable
+# armed state, and a routine wipe cycle should arm immediately before rebooting
+# rather than trusting this. See docs/bring-up-notes.md.
 
 /system routerboard settings
 set boot-device=try-ethernet-once-then-nand
-
-# --- OPEN --------------------------------------------------------------------
-# See the "Verification status" block at the top of this file. Nothing below
-# the ssh-key sequence has been exercised anywhere, and that sequence has only
-# been exercised at an interactive prompt, not in a first-boot context.

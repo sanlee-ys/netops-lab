@@ -87,6 +87,34 @@ the command requires a reachable, running device. If an agent later leaves
 the router running-but-unreachable — precisely the failure item 4 exists to
 study — there is no opportunity to arm it after the fact.
 
+**Amended 2026-08-03 — the arm is single-use, so "not at wipe time" is wrong as
+stated.** `try-ethernet-once-then-nand` is a genuine one-shot: the next boot
+consumes it and RouterBOOT reverts the stored value to its default. A
+provisioned router therefore offers itself to Netinstall for exactly one boot
+and then silently stops.
+
+The rationale above survives intact — a router that is unreachable cannot be
+armed after the fact, and one shot is precisely what that case needs. What does
+not survive is the implication that provision-time arming is *sufficient*. It
+covers the lockout case and it does not cover routine cycles, because any
+restart from any cause spends the shot. This decision read as "the board stays
+armed"; it never did.
+
+Two consequences follow, and they are recorded here rather than acted on.
+
+The routine wipe cycle should arm immediately before rebooting, over SSH, in
+the same run that starts the Netinstall server. That is additive to this
+decision, not a replacement for it — both arming points are wanted, for
+different failures.
+
+More seriously, **item 4's recovery path is thinner than this ADR assumed.**
+The single shot is live only until the next restart, so a lockout that follows
+a reboot has no armed board behind it and needs the reset button. Any lockout
+run should verify the board is armed as part of its setup, and treat that as a
+precondition rather than a property.
+
+Evidence and method: `docs/bring-up-notes.md`, 2026-08-03.
+
 **Device-mode precondition, discovered on hardware 2026-07-25.** The arming
 command above fails with `not allowed by device-mode` on a factory board. The
 hEX ships in **`mode: home`**, the most restrictive mode, and
@@ -184,24 +212,31 @@ power cycle**, with no button hold, no console and no serial adapter. `-r -s`
 compose as designed, the Pi hosts the whole cycle under QEMU, and the PC
 fallback in decision 2 was never triggered.
 
-Two things remain open, both recorded in `provisioning/default-config.rsc`:
+Two things were left open, both recorded in `provisioning/default-config.rsc`.
+**Both are now closed.**
 
 - **Netinstall leaves `admin` blank and RouterOS demands an interactive
-  password change on first login.** Key auth succeeds and the prompt appears
-  anyway, so a script-driven Pi would meet it too. "Zero-touch" therefore still
-  has a human in it. The decisive untested question is whether a
-  *non-interactive* SSH bypasses the prompt; if it does, nothing needs to
-  change.
-- **Whether the arming line actually ran.** `boot-device` is a RouterBOOT
-  setting and may survive a NAND format independently of RouterOS, so this run
-  cannot distinguish the script having armed the board from the manual value
-  persisting. It matters because a truly factory board starts at
-  `routerboard: no`, where that line fails. Settle it by setting
-  `boot-device=nand` and re-running the cycle.
+  password change on first login.** ~~The decisive untested question is whether
+  a *non-interactive* SSH bypasses the prompt.~~ **ANSWERED 2026-07-26: it
+  does.** `ssh admin@192.168.99.1 "/system resource print"` prints with no
+  prompt on a freshly installed board, so a script driving this router never
+  meets it and no `/user set` line is needed.
+- **Whether the arming line actually ran.** ~~Settle it by setting
+  `boot-device=nand` and re-running the cycle.~~ **ANSWERED 2026-08-03: it
+  ran** — and the proposed test was never needed. Netinstall reaches setup mode
+  by Etherbooting, which consumes `try-ethernet-once-then-nand` and reverts the
+  stored value to RouterBOOT's default. The armed reading taken after the cycle
+  therefore could only have been written by the provisioning script; the
+  "persisted through the format" alternative does not survive the sequence.
+  A soft reboot with nothing listening settled it in one command. See
+  `docs/bring-up-notes.md`.
 
-Both are answerable by one more wipe cycle, which is itself the point: the
-harness this ADR set out to build is now the cheapest way to answer questions
-about the harness.
+The closing prediction was that both were answerable by one more wipe cycle.
+Neither needed one — the first was a non-interactive SSH, the second a soft
+reboot. The instinct was right in substance (the harness is the cheapest way to
+ask questions about the harness) and wrong about the price, in the direction of
+overestimating it. Worth noticing, because the same overestimate is what let
+the arming question sit open for a week.
 
 ## Deferred
 
