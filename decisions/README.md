@@ -12,6 +12,7 @@ the decision, and the consequences — including trade-offs accepted.
 | [005](005-pi-as-ztp-host.md) | The Pi is the ZTP host — Netinstall-driven, armed for repeat cycles | Accepted |
 | [006](006-management-surface-on-ether1.md) | The management surface the provisioning script opens on ether1 | Accepted |
 | [007](007-herdr-as-agent-workspace.md) | Herdr is the agent workspace on the Pi — for persistence, not for driving | Accepted |
+| [008](008-unattended-wipe-cycle.md) | The wipe cycle runs unattended — one command, no physical action | Accepted |
 
 ## Format
 

@@ -128,8 +128,14 @@ confirmation prompt — the same interactive-only pattern as the forced
 first-login password change.
 
 Together those make a wipe cycle drivable end to end from the Pi: arm over SSH,
-reboot over SSH, let the waiting server catch the board. What that should do to
-`reprovision.sh` is a design question and is deliberately not answered here.
+reboot over SSH, let the waiting server catch the board. `reprovision.sh` now
+does exactly that — see [decisions/008](../decisions/008-unattended-wipe-cycle.md).
+
+One ordering constraint from that work is worth having here rather than only in
+the script: **the server must be listening before the reboot is issued.** Get it
+backwards and the board Etherboots into nothing, falls through to NAND, and
+spends the arm — so the retry needs a re-arm first, and a cycle that looked
+merely slow has actually moved backwards.
 
 ### The reasoning error, which is the part worth keeping
 

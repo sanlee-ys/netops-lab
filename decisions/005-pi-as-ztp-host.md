@@ -100,12 +100,14 @@ covers the lockout case and it does not cover routine cycles, because any
 restart from any cause spends the shot. This decision read as "the board stays
 armed"; it never did.
 
-Two consequences follow, and they are recorded here rather than acted on.
+Two consequences follow.
 
 The routine wipe cycle should arm immediately before rebooting, over SSH, in
 the same run that starts the Netinstall server. That is additive to this
 decision, not a replacement for it — both arming points are wanted, for
-different failures.
+different failures. **Acted on the same day in
+[decisions/008](008-unattended-wipe-cycle.md)**, which also removes the power
+cycle this ADR treated as irreducible.
 
 More seriously, **item 4's recovery path is thinner than this ADR assumed.**
 The single shot is live only until the next restart, so a lockout that follows
