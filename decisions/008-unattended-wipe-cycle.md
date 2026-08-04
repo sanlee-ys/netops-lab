@@ -90,12 +90,25 @@ moment it rebooted.
 **6. The script verifies its own result.** One non-interactive SSH exercises
 addressing, the management accept landing above the `!LAN` drop, the key import
 having run inside a first-boot script, and password login being off. It also
-confirms the board came back re-armed.
+checks whether the board came back re-armed.
 
 This closes a gap the previous version named honestly and could not fix: a run
 marked `ok` in the log used to mean the install ran and nothing more. It now
-means the install ran, the router answered a non-interactive SSH, and it came
-back armed. Firewall *rule order* is still checked by hand, and the script still
+means the install ran *and* the router answered a non-interactive SSH.
+
+Two distinctions in the log are deliberate, because collapsing them would make
+the number it produces less honest rather than more. Whether the board came back
+re-armed is a **separate field**, not part of `ok` — an unarmed board is a
+degraded success, and its likeliest cause is a genuinely factory board whose
+device-mode blocks the arming line, which is a case this script is meant to
+support. And when the Pi's `ssh-agent` is empty, verification is recorded as
+**skipped** (`"ok":null`) rather than failed: every SSH here uses `BatchMode`,
+so it cannot run at all, and marking a good wipe bad would put a false negative
+into the one log meant to measure repeatability. That combination is routine
+rather than exotic — decisions/006 accepts that the agent needs a human after
+every Pi reboot, and a power event takes the Pi and the router down together.
+
+Firewall *rule order* is still checked by hand, and the script still
 says so.
 
 ## Consequences

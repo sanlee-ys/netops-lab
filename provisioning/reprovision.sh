@@ -104,20 +104,34 @@ emit() {
         "${extra:+,$extra}" >> "$RUN_LOG"
 }
 
+# Liveness for the backgrounded server, and it MUST carry sudo.
+#
+# NI_PID is the sudo wrapper, which runs as root. Signal 0 is permission-checked
+# exactly like a real signal, so an unprivileged `kill -0` returns EPERM against
+# a process that is very much alive. Probing without sudo therefore reads "dead"
+# on every healthy run -- which would abort the cycle within a second on a false
+# diagnosis, and silently disable the cleanup below by returning early from its
+# own guard. Both were live bugs caught in review before first hardware use.
+server_alive() {
+    [ -n "$NI_PID" ] || return 1
+    sudo -n kill -0 "$NI_PID" 2>/dev/null
+}
+
 # The server now outlives individual steps, so an abort between starting it and
 # reaping it would leave a root-owned BOOTP/TFTP server bound to the lab link.
 # On a dual-homed box that is exactly the rogue service the -i flag exists to
 # prevent, so cleanup is not tidiness -- it is the same safety property.
 stop_server() {
     [ -n "$NI_PID" ] || return 0
-    kill -0 "$NI_PID" 2>/dev/null || return 0
-    # NI_PID is the sudo wrapper, which runs as root: an unprivileged signal
-    # will not reach it, so this needs sudo as well. The pkill afterwards is a
-    # backstop for the qemu child outliving its parent, and it is scoped to the
-    # one binary this lab ever runs under that name.
-    sudo kill "$NI_PID" 2>/dev/null || true
+    server_alive || return 0
+    # -n throughout. The preflight established passwordless sudo, and a password
+    # prompt inside an EXIT trap blocks forever with the run-end event still
+    # unwritten -- which is the one outcome this log exists to make impossible.
+    sudo -n kill "$NI_PID" 2>/dev/null || true
     sleep 2
-    sudo pkill -f netinstall-cli 2>/dev/null || true
+    # Backstop for the qemu child outliving its parent. Scoped to the one binary
+    # this lab ever runs under that name.
+    sudo -n pkill -f netinstall-cli 2>/dev/null || true
 }
 
 finish() {
@@ -168,6 +182,19 @@ command -v qemu-i386-static >/dev/null \
 command -v ss >/dev/null \
     || die "ss missing — apt install iproute2 (needed to detect server readiness)"
 
+# udp/67 must be FREE before we start, and this check is load-bearing rather
+# than hygienic. The readiness poll below cannot tell whose listener it is
+# looking at, so a leftover netinstall-cli from an aborted run would be matched
+# immediately: this run would declare itself ready, reboot the router into a
+# wipe window it does not own, and only then discover that its own server had
+# died unable to bind the port. By then the arm is spent and the board is down.
+existing_bootp="$(ss -lun 2>/dev/null || true)"
+case "$existing_bootp" in
+    *":${BOOTP_PORT} "*)
+        die "something already holds udp/${BOOTP_PORT} — a netinstall-cli left over from an aborted run? (sudo pkill -f netinstall-cli)"
+        ;;
+esac
+
 # sudo must be non-interactive. Attended, a password prompt was a pause; here it
 # is a silent hang with a backgrounded root process on the far side of it.
 sudo -n true 2>/dev/null \
@@ -176,25 +203,45 @@ sudo -n true 2>/dev/null \
 # The link must be up before starting. nmcli will happily configure an address
 # on an unplugged interface, so a correct-looking `ip addr` proves nothing —
 # check the carrier.
-ip -br link show "$LAB_IFACE" | grep -q 'UP' \
-    || die "$LAB_IFACE is not UP — is the cable in the router's ether1?"
+#
+# Read the STATE COLUMN, not the whole line. `ip -br link` also prints the flags,
+# and an admin-up interface with the cable out renders as
+#     eth0  DOWN  d8:3a:..  <NO-CARRIER,BROADCAST,MULTICAST,UP>
+# so a bare `grep -q UP` matches the ",UP>" in the flags and passes on exactly
+# the unplugged cable this check exists to catch.
+link_state="$(ip -br link show "$LAB_IFACE" 2>/dev/null | awk 'NR==1{print $2}' || true)"
+[ "$link_state" = "UP" ] \
+    || die "$LAB_IFACE is not UP (state: ${link_state:-unknown}) — is the cable in the router's ether1?"
 
 # The lab link must never hold the default route. If it does, the SSH session
 # running this script is about to be cut by the wipe it started.
 #
 # This is now the ONLY thing standing between one command and wiped hardware,
 # since the power cycle that used to require a human is gone. Treat it as such.
-if ip route show default | grep -q "dev $LAB_IFACE"; then
-    die "default route is via $LAB_IFACE — refusing to wipe the router you are reached through"
-fi
+#
+# Matched against a captured string rather than piped into `grep -q`, and that
+# is not style. Under `pipefail` a short-circuiting grep can SIGPIPE the writer,
+# making the pipeline non-zero and the `if` FALSE. grep -q only short-circuits
+# on a MATCH — so the race exists exclusively in the dangerous configuration,
+# and it fails open. A clean lab reads all input and can never hit it.
+default_routes="$(ip route show default 2>/dev/null || true)"
+case "$default_routes" in
+    *"dev $LAB_IFACE"*)
+        die "default route is via $LAB_IFACE — refusing to wipe the router you are reached through"
+        ;;
+esac
 
 # Not fatal: the agent is what makes the SSH steps below non-interactive, but a
 # missing agent must not block the unreachable-board path, which needs no SSH at
 # all. Warn, and let the reachability probe decide. decisions/006 records why
 # the agent needs a human after a Pi reboot in the first place.
+AGENT_LOADED=1
 if ! ssh-add -l >/dev/null 2>&1; then
+    AGENT_LOADED=0
     printf 'reprovision: WARNING — no keys in ssh-agent (ssh-add ~/.ssh/id_ed25519).\n' >&2
-    printf '             Arming and rebooting will fall back to a manual power cycle.\n' >&2
+    printf '             EVERY ssh step is disabled by this, not just the pre-wipe ones:\n' >&2
+    printf '             arming and rebooting fall back to a manual power cycle, AND the\n' >&2
+    printf '             result cannot be verified afterwards. The wipe still works.\n' >&2
 fi
 
 emit preflight_ok
@@ -300,7 +347,7 @@ wait_for_bootp() {
     local deadline=$((SECONDS + SERVER_READY_TIMEOUT))
     local listeners
     while [ "$SECONDS" -lt "$deadline" ]; do
-        if ! kill -0 "$NI_PID" 2>/dev/null; then
+        if ! server_alive; then
             return 2
         fi
         # Captured to a variable rather than piped into grep -q: under pipefail
@@ -380,7 +427,7 @@ rm -f "$KNOWN_HOSTS_LAB"
 wait_for_install() {
     local deadline=$((SECONDS + INSTALL_TIMEOUT))
     while [ "$SECONDS" -lt "$deadline" ]; do
-        kill -0 "$NI_PID" 2>/dev/null || return 0
+        server_alive || return 0
         sleep 2
     done
     return 1
@@ -421,8 +468,6 @@ fi
 # A ping would prove none of it. The provisioned config accepts ICMP with no
 # interface restriction, so it answers whether or not management works.
 
-echo "Install finished. Waiting for the router to come back."
-
 verify_router() {
     local deadline=$((SECONDS + VERIFY_TIMEOUT))
     while [ "$SECONDS" -lt "$deadline" ]; do
@@ -434,6 +479,36 @@ verify_router() {
     return 1
 }
 
+# An empty ssh-agent disables verification entirely, and that combination is
+# routine rather than a corner: decisions/006 accepts that the agent needs a
+# human after every Pi reboot, and a power event takes the Pi and the router
+# down together — which is exactly how this board was found unarmed on
+# 2026-08-03. Every ssh here uses BatchMode, so it cannot fall back to a prompt.
+#
+# Reported as SKIPPED, not failed. The install genuinely succeeded, and marking
+# a good run bad would put a false negative into the one log that is supposed to
+# measure whether this cycle is repeatable.
+if [ "$AGENT_LOADED" -eq 0 ]; then
+    emit verify_end '"ok":null,"reason":"no_ssh_agent"'
+    rm -f "$NI_LOG"
+    cat <<'EOF'
+
+Install finished, and NOT VERIFIED — there are no keys in ssh-agent, so nothing
+here could check the result. The wipe itself succeeded.
+
+Load the agent and confirm by hand:
+
+    ssh-add ~/.ssh/id_ed25519
+    ssh lab-router "/system resource print"
+    ssh lab-router "/system routerboard settings print"   # want try-ethernet-once-then-nand
+
+EOF
+    printf 'Run logged to %s (install ran; verification SKIPPED, not failed).\n' "$RUN_LOG"
+    exit 0
+fi
+
+echo "Install finished. Waiting for the router to come back."
+
 set +e
 verify_router
 VERIFY_RC=$?
@@ -441,7 +516,7 @@ set -e
 
 if [ "$VERIFY_RC" -ne 0 ]; then
     emit verify_end '"ok":false,"reason":"unreachable"'
-    die "install succeeded but the router never answered SSH — check the ssh-agent has the key loaded, then the firewall rule order and the key import"
+    die "install succeeded but the router never answered SSH — check the firewall rule order and the key import"
 fi
 
 # Also confirm the provisioning script re-armed the board. That line is verified
@@ -450,10 +525,27 @@ fi
 # script's arm step, which needs the router reachable. Worth knowing now.
 rearmed="$(ssh "${SSH_OPTS[@]}" "$ROUTER_SSH" "/system routerboard settings print" 2>/dev/null || true)"
 case "$rearmed" in
-    *try-ethernet-once-then-nand*) emit verify_end '"ok":true,"rearmed":true' ;;
+    *try-ethernet-once-then-nand*)
+        emit verify_end '"ok":true,"rearmed":true'
+        ;;
     *)
-        emit verify_end '"ok":false,"rearmed":false'
-        die "router is up, but default-config.rsc did not re-arm it — the next cycle has no fallback"
+        # Warned, not fatal. This cycle succeeded — the router is provisioned
+        # and reachable. What is missing is the provision-time arm, and that
+        # only affects the NEXT cycle, which this script arms over SSH anyway
+        # provided the router is still reachable then.
+        #
+        # The expected cause is a genuinely factory board: it ships device-mode
+        # `routerboard: no`, which blocks the arming line in default-config.rsc
+        # outright. Dying here would fail the exact first-cycle-on-a-new-device
+        # case this script's header documents as supported.
+        emit verify_end '"ok":true,"rearmed":false'
+        printf '\nreprovision: WARNING — the router is up, but came back UNARMED.\n' >&2
+        printf '             default-config.rsc could not set boot-device. On a factory\n' >&2
+        printf '             board this is expected — check with:\n' >&2
+        printf '                 ssh lab-router "/system device-mode print"   # want routerboard: yes\n' >&2
+        printf '             Anywhere else it is a regression in the arming line.\n' >&2
+        printf '             Until it is armed, recovering an UNREACHABLE router needs\n' >&2
+        printf '             the reset-button hold rather than this script.\n' >&2
         ;;
 esac
 
@@ -461,7 +553,7 @@ rm -f "$NI_LOG"
 
 cat <<'EOF'
 
-Done, and verified. The router is provisioned, reachable by key, and re-armed.
+Done. The router is provisioned and reachable by key.
 
 Checks worth running by hand after any change to default-config.rsc:
 
@@ -471,9 +563,11 @@ Checks worth running by hand after any change to default-config.rsc:
 
 EOF
 
-# Said last and said plainly, because the log's credibility depends on it: a run
-# marked ok in this file now means the install ran AND the router answered a
-# non-interactive SSH AND it came back armed. It does not mean the firewall
-# rules are in the intended order — that is what the commands above are for, and
-# they are still by hand.
-printf 'Run logged to %s (install + reachability + re-arm; rule ORDER is still checked by hand).\n' "$RUN_LOG"
+# Said last and said plainly, because the log's credibility depends on knowing
+# exactly what its `ok` covers. A run marked ok means the install ran and the
+# router answered a non-interactive SSH. Whether it came back armed is a
+# SEPARATE field (`rearmed`), because an unarmed board is a degraded success
+# rather than a failed run, and `verify_end` carries `"ok":null` when there was
+# no agent to verify with at all. None of it says the firewall rules are in the
+# intended order — that is what the commands above are for, and they are by hand.
+printf 'Run logged to %s (install + reachability; re-arm is a separate field, rule ORDER is by hand).\n' "$RUN_LOG"
