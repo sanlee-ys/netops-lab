@@ -275,6 +275,12 @@ cd "$NETINSTALL_DIR"
 
 NI_START=$SECONDS
 emit netinstall_start
+# shellcheck disable=SC2024
+# SC2024 warns that sudo does not apply to the redirect. That is true and it is
+# the intent: NI_LOG comes from mktemp and is owned by the invoking user, so the
+# unprivileged shell can write it, and the failure paths below can `cat` and
+# `rm` it without sudo. A root-owned log would need sudo to read the one thing
+# you want to read when a run goes wrong.
 sudo qemu-i386-static ./netinstall-cli \
     -i "$LAB_IFACE" \
     -r \
