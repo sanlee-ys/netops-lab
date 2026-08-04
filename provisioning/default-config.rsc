@@ -272,8 +272,9 @@ set always-allow-password-login=no
 # exactly one Netinstall opportunity per provisioning. That is the right
 # mechanism for the lockout case — a router that is unreachable cannot be armed
 # after the fact, and one shot is all that case needs — but it is not a durable
-# armed state, and a routine wipe cycle should arm immediately before rebooting
-# rather than trusting this. See docs/bring-up-notes.md.
+# armed state. reprovision.sh therefore arms over SSH immediately before it
+# reboots, rather than trusting this line; both arming points are wanted, for
+# different failures. See decisions/008 and docs/bring-up-notes.md.
 
 /system routerboard settings
 set boot-device=try-ethernet-once-then-nand

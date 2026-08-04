@@ -148,12 +148,22 @@ A repeat cycle is one command on the Pi followed by a reboot of the router —
 kind. RouterOS does demand an interactive password change on first login, but
 it is interactive-only and a non-interactive session never meets it.
 
-That reboot does **not** have to be a power cycle. RouterBOOT runs its
-`boot-device` logic on every boot, so `ssh lab-router "/system reboot"` reaches
-Etherboot exactly as pulling the plug does — verified 2026-08-03. Combined with
-arming over SSH in the same breath, the cycle is drivable end to end from the
-Pi with nothing physical in it. The board must be armed at the moment of that
-reboot, which is the part the script does not yet do for itself.
+That reboot does **not** have to be a power cycle, and it is no longer done by
+hand. RouterBOOT runs its `boot-device` logic on every boot, so
+`ssh lab-router "/system reboot"` reaches Etherboot exactly as pulling the plug
+does — verified 2026-08-03. The script arms the board, starts the server, waits
+until it is genuinely listening, reboots the router into it, and verifies the
+result. One command, nothing physical, and a run marked `ok` now means the
+router answered afterwards rather than only that the installer exited zero.
+See [decisions/008](decisions/008-unattended-wipe-cycle.md), including the cost
+accepted: one command wipes hardware with no confirmation, and the preflight
+that refuses to wipe the router you are reached through is what carries that.
+
+Two physical actions remain, both bounded. A *factory* board still needs the
+reset-button hold and a one-time device-mode update, because it ships unable to
+be armed at all. And a router that is already unreachable cannot be rebooted
+over the management path that is broken — so that branch asks for a power cycle
+rather than failing, which is the case Netinstall exists for.
 
 What that cost, and it is worth knowing before repeating this: the barriers to
 running unattended were not on the router at all. They were SSH host-key
