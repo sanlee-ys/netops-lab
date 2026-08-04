@@ -90,6 +90,12 @@ RUN_LOG="${RUN_LOG:-$HOME/netops-lab-runs.ndjson}"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 RUN_ENDED=0
 
+# Carried into run_end so a terminal record is self-describing. Without it, a
+# run whose verification was SKIPPED for want of an ssh-agent logs the same
+# `"ok":true` as a fully checked one, and the obvious way to count clean cycles
+# would silently include runs where nothing ever looked at the router.
+RUN_VERIFIED=false
+
 # Values here are paths and shell messages, so escape the two characters that
 # would otherwise produce invalid JSON. Nothing interpolated is user input, but a
 # path with a quote in it should corrupt one field rather than the whole file.
@@ -123,7 +129,13 @@ server_alive() {
 # prevent, so cleanup is not tidiness -- it is the same safety property.
 stop_server() {
     [ -n "$NI_PID" ] || return 0
-    server_alive || return 0
+    # Deliberately NOT gated on server_alive(). That probe reports "the sudo -n
+    # kill -0 failed", which conflates a dead process with an inability to ask --
+    # and gating cleanup on it would let the case we cannot fully rule out (a
+    # sudoers whitelist granting `true` but not `kill`) leave a root-owned
+    # BOOTP/TFTP server bound to the lab link on a dual-homed box. Signalling a
+    # pid that has already exited costs nothing, so this simply tries.
+    #
     # -n throughout. The preflight established passwordless sudo, and a password
     # prompt inside an EXIT trap blocks forever with the run-end event still
     # unwritten -- which is the one outcome this log exists to make impossible.
@@ -142,17 +154,27 @@ finish() {
     # An unhandled failure reaches here without a reason, which is worth saying
     # plainly rather than recording as a bare non-zero exit.
     if [ "$rc" -eq 0 ]; then
-        emit run_end '"ok":true'
+        emit run_end "\"ok\":true,\"verified\":$RUN_VERIFIED"
     else
-        emit run_end "\"ok\":false,\"exit\":$rc,\"reason\":\"unhandled\""
+        emit run_end "\"ok\":false,\"verified\":$RUN_VERIFIED,\"exit\":$rc,\"reason\":\"unhandled\""
+        # Kept, not cleaned: on a failure this file is the only record of what
+        # the installer actually said, and it outlives the terminal that saw it.
+        # An `if` rather than an && chain, so this cannot hand a non-zero status
+        # back out of the EXIT trap.
+        if [ -n "$NI_LOG" ] && [ -f "$NI_LOG" ]; then
+            printf 'reprovision: netinstall output retained at %s\n' "$NI_LOG" >&2
+        fi
     fi
 }
 trap finish EXIT
 
 die() {
     RUN_ENDED=1
-    emit run_end "\"ok\":false,\"exit\":1,\"reason\":\"$(json_escape "$1")\""
+    emit run_end "\"ok\":false,\"verified\":$RUN_VERIFIED,\"exit\":1,\"reason\":\"$(json_escape "$1")\""
     printf 'reprovision: %s\n' "$1" >&2
+    if [ -n "$NI_LOG" ] && [ -f "$NI_LOG" ]; then
+        printf 'reprovision: netinstall output retained at %s\n' "$NI_LOG" >&2
+    fi
     exit 1
 }
 
@@ -200,6 +222,14 @@ esac
 sudo -n true 2>/dev/null \
     || die "sudo needs a password here — this script cannot run unattended until that is fixed"
 
+# And specifically that `sudo -n kill` is permitted, which is a different claim.
+# The server runs as root, so both the liveness probe and the cleanup path go
+# through it; a sudoers whitelist that grants `true` but not `kill` passes the
+# check above and would then read a perfectly healthy server as dead. Probing
+# our own shell is harmless and tests the exact capability.
+sudo -n kill -0 "$$" 2>/dev/null \
+    || die "sudo -n kill is not permitted — liveness checks and server cleanup both need it"
+
 # The link must be up before starting. nmcli will happily configure an address
 # on an unplugged interface, so a correct-looking `ip addr` proves nothing —
 # check the carrier.
@@ -224,7 +254,12 @@ link_state="$(ip -br link show "$LAB_IFACE" 2>/dev/null | awk 'NR==1{print $2}' 
 # making the pipeline non-zero and the `if` FALSE. grep -q only short-circuits
 # on a MATCH — so the race exists exclusively in the dangerous configuration,
 # and it fails open. A clean lab reads all input and can never hit it.
-default_routes="$(ip route show default 2>/dev/null || true)"
+# A failing `ip` must not read as "no default route here". Folding the two
+# together would let an unreadable routing table look identical to a safe one,
+# on the single check that carries this script's safety.
+if ! default_routes="$(ip route show default 2>/dev/null)"; then
+    die "could not read the routing table — refusing to wipe without confirming the default route"
+fi
 case "$default_routes" in
     *"dev $LAB_IFACE"*)
         die "default route is via $LAB_IFACE — refusing to wipe the router you are reached through"
@@ -325,9 +360,10 @@ emit netinstall_start
 # shellcheck disable=SC2024
 # SC2024 warns that sudo does not apply to the redirect. That is true and it is
 # the intent: NI_LOG comes from mktemp and is owned by the invoking user, so the
-# unprivileged shell can write it, and the failure paths below can `cat` and
-# `rm` it without sudo. A root-owned log would need sudo to read the one thing
-# you want to read when a run goes wrong.
+# unprivileged shell can write it, and the failure paths below can `cat` it
+# without sudo. A root-owned log would need sudo to read the one thing you want
+# to read when a run goes wrong. It is removed only on success — a failed run
+# deliberately leaves it behind, and says where.
 sudo qemu-i386-static ./netinstall-cli \
     -i "$LAB_IFACE" \
     -r \
@@ -426,9 +462,13 @@ rm -f "$KNOWN_HOSTS_LAB"
 
 wait_for_install() {
     local deadline=$((SECONDS + INSTALL_TIMEOUT))
+    # 5s rather than 1s: each probe is a sudo invocation and syslogs a command
+    # line, so a long install would otherwise write hundreds of entries. It also
+    # keeps refreshing the sudo timestamp, which is what makes the -n calls in
+    # stop_server safe on a run that outlives sudo's default 15-minute window.
     while [ "$SECONDS" -lt "$deadline" ]; do
         server_alive || return 0
-        sleep 2
+        sleep 5
     done
     return 1
 }
@@ -518,6 +558,8 @@ if [ "$VERIFY_RC" -ne 0 ]; then
     emit verify_end '"ok":false,"reason":"unreachable"'
     die "install succeeded but the router never answered SSH — check the firewall rule order and the key import"
 fi
+
+RUN_VERIFIED=true
 
 # Also confirm the provisioning script re-armed the board. That line is verified
 # to run (2026-08-03), so a failure here is a real regression rather than an
