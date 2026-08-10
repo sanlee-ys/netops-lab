@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" role="img" aria-labelledby="topoTitle topoDesc">
+  <title id="topoTitle">netops-lab topology — dual-homed hosts</title>
+  <desc id="topoDesc">Home Wi-Fi router on an untouched home network sits above San's PC and a Raspberry Pi 5. Both hosts are dual-homed: Wi-Fi up to the home router, Ethernet down to a MikroTik hEX on an isolated lab segment. Lockout on the lab segment remains observable over Wi-Fi.</desc>
+
+  <defs>
+    <style>
+      .font { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', monospace; }
+    </style>
+  </defs>
+
+  <!-- frame -->
+  <rect x="0.75" y="0.75" width="718.5" height="438.5" rx="10" fill="#0c0c0c" stroke="#3a3a3a" stroke-width="1.5"/>
+  <path d="M0 36 V10 a10 10 0 0 1 10 -10 H710 a10 10 0 0 1 10 10 V36 Z" fill="#1b1b1b"/>
+  <line x1="0" y1="36" x2="720" y2="36" stroke="#3a3a3a"/>
+  <text class="font" x="20" y="23.5" font-size="13" fill="#cccccc" fill-opacity="0.55">topology</text>
+  <text class="font" x="700" y="23.5" font-size="12" fill="#cccccc" fill-opacity="0.45" text-anchor="end">dual-homed hosts · wifi outlives lab lockout</text>
+
+  <!-- zones (paint first so links and nodes sit on top) -->
+  <rect x="28" y="52" width="664" height="96" rx="6" fill="#111113" stroke="#2a2a2a" stroke-width="1"/>
+  <text class="font" x="44" y="72" font-size="11" letter-spacing="1.5" fill="#71717a">HOME NETWORK — NEVER TOUCHED BY THIS LAB</text>
+
+  <rect x="28" y="312" width="664" height="84" rx="6" fill="#111113" stroke="#5c9eff" stroke-opacity="0.4" stroke-width="1.5"/>
+  <text class="font" x="44" y="332" font-size="11" letter-spacing="1.5" fill="#71717a">ISOLATED LAB SEGMENT</text>
+
+  <!-- links under node boxes -->
+  <path d="M 300 130 L 188 188" fill="none" stroke="#52525b" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <path d="M 420 130 L 532 188" fill="none" stroke="#52525b" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <path d="M 188 248 L 300 348" fill="none" stroke="#5c9eff" stroke-width="1.6"/>
+  <path d="M 532 248 L 420 348" fill="none" stroke="#5c9eff" stroke-width="1.6"/>
+
+  <!-- link labels -->
+  <text class="font" x="214" y="158" font-size="11" fill="#71717a" text-anchor="middle">wifi</text>
+  <text class="font" x="506" y="158" font-size="11" fill="#71717a" text-anchor="middle">wifi</text>
+  <text class="font" x="120" y="300" font-size="11" fill="#5c9eff" text-anchor="middle">ethernet</text>
+  <text class="font" x="600" y="300" font-size="11" fill="#5c9eff" text-anchor="middle">ethernet → ether1</text>
+
+  <!-- nodes -->
+  <rect x="250" y="86" width="220" height="44" rx="4" fill="#0c0c0c" stroke="#3a3a3a" stroke-width="1.5"/>
+  <text class="font" x="360" y="104" font-size="14" fill="#e4e4e7" text-anchor="middle">Home Wi-Fi router</text>
+  <text class="font" x="360" y="120" font-size="11" fill="#71717a" text-anchor="middle">house uplink</text>
+
+  <rect x="88" y="188" width="200" height="60" rx="4" fill="#0c0c0c" stroke="#3a3a3a" stroke-width="1.5"/>
+  <text class="font" x="188" y="214" font-size="14" fill="#e4e4e7" text-anchor="middle">San's PC</text>
+  <text class="font" x="188" y="232" font-size="11" fill="#71717a" text-anchor="middle">dual-homed</text>
+
+  <rect x="432" y="188" width="200" height="60" rx="4" fill="#0c0c0c" stroke="#3a3a3a" stroke-width="1.5"/>
+  <text class="font" x="532" y="210" font-size="14" fill="#e4e4e7" text-anchor="middle">Raspberry Pi 5</text>
+  <text class="font" x="532" y="228" font-size="11" fill="#71717a" text-anchor="middle">ZTP host, then agent host</text>
+  <text class="font" x="532" y="242" font-size="11" fill="#71717a" text-anchor="middle">dual-homed</text>
+
+  <rect x="250" y="348" width="220" height="32" rx="4" fill="#0c0c0c" stroke="#5c9eff" stroke-width="1.5"/>
+  <text class="font" x="360" y="369" font-size="13" fill="#e4e4e7" text-anchor="middle">MikroTik hEX · DUT</text>
+
+  <!-- endpoint ticks on top of boxes -->
+  <circle cx="300" cy="130" r="2.5" fill="#52525b"/>
+  <circle cx="420" cy="130" r="2.5" fill="#52525b"/>
+  <circle cx="188" cy="188" r="2.5" fill="#52525b"/>
+  <circle cx="532" cy="188" r="2.5" fill="#52525b"/>
+  <circle cx="188" cy="248" r="2.5" fill="#5c9eff"/>
+  <circle cx="532" cy="248" r="2.5" fill="#5c9eff"/>
+  <circle cx="300" cy="348" r="2.5" fill="#5c9eff"/>
+  <circle cx="420" cy="348" r="2.5" fill="#5c9eff"/>
+
+  <!-- claim strip -->
+  <circle cx="44" cy="418" r="3.5" fill="#5c9eff"/>
+  <text class="font" x="56" y="422" font-size="11" fill="#a1a1aa">lockout on lab segment is observable via wifi — that is why dual-homing is load-bearing</text>
+</svg>
