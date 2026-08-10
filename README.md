@@ -58,21 +58,13 @@ an evening if hit blind, is logged in
 
 ## Topology
 
-```mermaid
-graph TB
-    subgraph home["Home network — never touched by this lab"]
-        HR["Home Wi-Fi router"]
-    end
-
-    subgraph lab["Isolated lab segment"]
-        HEX["MikroTik hEX<br/>(device under test)"]
-    end
-
-    PC["San's PC"] -- ethernet --> HEX
-    PC -- wifi --> HR
-    PI["Raspberry Pi 5<br/>(ZTP host, then agent host)"] -- ethernet to ether1 --> HEX
-    PI -- wifi --> HR
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/topology-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="images/topology-light.svg">
+    <img alt="Lab topology: San's PC and a Raspberry Pi 5 are dual-homed — Wi-Fi to an untouched home router, Ethernet to a MikroTik hEX on an isolated lab segment — so a lab-segment lockout remains observable over Wi-Fi." src="images/topology-dark.svg" width="720">
+  </picture>
+</p>
 
 The Pi is deliberately dual-homed: one interface on the isolated lab segment,
 one on the house wifi. When an agent severs the Pi's lab-segment link, the
