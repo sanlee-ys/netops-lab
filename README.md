@@ -59,7 +59,10 @@ an evening if hit blind, is logged in
 ## WireGuard + house uplink (item 2)
 
 Designed in [decisions/009](decisions/009-wireguard-endpoint-and-uplink.md).
-**Repo half is in; live apply is a Pi session.**
+**Live on hardware 2026-08-11** (home-LAN path verified: PC WireGuard →
+`ping 10.99.0.1` and `ping 192.168.88.1`). Field notes, key layout, and the
+failure modes that burned time:
+[docs/bring-up-notes.md — 2026-08-11](docs/bring-up-notes.md#2026-08-11--wireguard-endpoint-live-house-uplink-on-ether5).
 
 | Piece | Where |
 |---|---|
@@ -67,18 +70,28 @@ Designed in [decisions/009](decisions/009-wireguard-endpoint-and-uplink.md).
 | `wg-lab` tunnel + San peer | `provisioning/apply-wireguard.sh` (keys on Pi only) |
 | Auto re-apply after wipe | `reprovision.sh` calls apply when `~/.config/netops-lab/wg-lab.private` exists |
 
-On `goguma`, once:
+**Placement:** Pi + hEX sit by the house/VZ router (short cables: Pi→ether1,
+ether5→VZ LAN). PC stays on house wifi only — no long run to the desk.
+Pi SSH user is `sanlee@goguma`.
 
 ```bash
+# on goguma — keys never in git
 mkdir -p ~/.config/netops-lab && chmod 700 ~/.config/netops-lab
-# server private key → ~/.config/netops-lab/wg-lab.private  (mode 600)
-# laptop pubkey     → ~/.config/netops-lab/wg-client-san.public
+# server private → ~/.config/netops-lab/wg-lab.private  (mode 600, full ~44-char key)
+# laptop public  → ~/.config/netops-lab/wg-client-san.public  # must match PC client.private
 chmod +x ~/netops-lab/provisioning/apply-wireguard.sh
-# cable ether5 to the house LAN; reserve DHCP + forward UDP 51820 on the house router
-./provisioning/apply-wireguard.sh   # or full: ./provisioning/reprovision.sh
+./provisioning/apply-wireguard.sh
+# home test Endpoint = <ether5 bound address>:51820  (not hairpin via public IP)
+# off-site: VZ UDP 51820 → ether5 address + Endpoint = public IPv4:51820
 ```
 
-PC on the lab stays on **ether2–4** only. ether5 is WAN.
+After key changes, confirm alignment before blaming the firewall:
+
+```bash
+ssh lab-router '/interface wireguard print proplist=name,public-key,listen-port'
+ssh lab-router '/interface wireguard peers print proplist=interface,public-key,allowed-address'
+# PC: Get-Content client.private -Raw | & "C:\Program Files\WireGuard\wg.exe" pubkey
+```
 
 ## Topology
 
@@ -121,13 +134,12 @@ real but unscheduled.
    [decisions/005](decisions/005-pi-as-ztp-host.md),
    [decisions/006](decisions/006-management-surface-on-ether1.md),
    [decisions/008](decisions/008-unattended-wipe-cycle.md)
-2. **WireGuard endpoint + house uplink** — **designed and scripted, 2026-08-11;
-   hardware apply pending.** RouterOS-native `wg-lab` on the hEX, house uplink
-   on ether5, keys on the Pi only —
-   [decisions/009](decisions/009-wireguard-endpoint-and-uplink.md).
-   Secret-free half is in
-   [provisioning/default-config.rsc](provisioning/default-config.rsc);
-   tunnel is [provisioning/apply-wireguard.sh](provisioning/apply-wireguard.sh).
+2. ~~**WireGuard endpoint + house uplink**~~ — **live 2026-08-11** (home-LAN
+   path). RouterOS-native `wg-lab` on the hEX, house uplink on ether5, keys on
+   the Pi — [decisions/009](decisions/009-wireguard-endpoint-and-uplink.md),
+   bring-up
+   [notes](docs/bring-up-notes.md#2026-08-11--wireguard-endpoint-live-house-uplink-on-ether5).
+   Off-site Endpoint (VZ port-forward + public IPv4) still to confirm.
 3. FRR / OSPF-BGP on the Pi
 4. Netwatch-driven self-lockout experiment
 5. Remote syslog off-box (so router logs survive the router going unreachable)
