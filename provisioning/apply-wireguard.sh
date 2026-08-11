@@ -53,6 +53,10 @@ CLIENT_PUBLIC="$(tr -d '[:space:]' <"$CLIENT_PUBLIC_FILE")"
 [ -n "$CLIENT_PUBLIC" ] || die "empty client public key"
 
 ssh_r() {
+    # Intentional client-side expansion: callers pass RouterOS command strings
+    # built on the Pi. SC2029 would want them expanded on the router shell,
+    # which is not where this lab's non-interactive SSH runs scripts.
+    # shellcheck disable=SC2029
     ssh "${SSH_OPTS[@]}" "$ROUTER_SSH" "$@"
 }
 
