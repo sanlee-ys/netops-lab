@@ -13,6 +13,7 @@ the decision, and the consequences — including trade-offs accepted.
 | [006](006-management-surface-on-ether1.md) | The management surface the provisioning script opens on ether1 | Accepted |
 | [007](007-herdr-as-agent-workspace.md) | Herdr is the agent workspace on the Pi — for persistence, not for driving | Accepted |
 | [008](008-unattended-wipe-cycle.md) | The wipe cycle runs unattended — one command, no physical action | Accepted |
+| [009](009-wireguard-endpoint-and-uplink.md) | WireGuard endpoint on the hEX, house uplink on ether5 | Accepted |
 
 ## Format
 
