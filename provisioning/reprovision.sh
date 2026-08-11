@@ -593,15 +593,30 @@ esac
 
 rm -f "$NI_LOG"
 
+# WireGuard is secret-bearing and lives outside the Netinstall script
+# (decisions/009). Re-apply from Pi-held keys when present so wipes do not
+# rotate the server identity. Missing keys = skip, not fail: uplink/NAT from
+# default-config.rsc still landed.
+WG_APPLY="$REPO_DIR/provisioning/apply-wireguard.sh"
+WG_KEY="${WG_SERVER_PRIVATE_FILE:-$HOME/.config/netops-lab/wg-lab.private}"
+if [ -x "$WG_APPLY" ] && [ -f "$WG_KEY" ]; then
+    echo "Applying WireGuard from $WG_KEY"
+    ROUTER_SSH="$ROUTER_SSH" "$WG_APPLY" || printf 'reprovision: WARNING — apply-wireguard failed; uplink is up, tunnel is not.\n' >&2
+elif [ -f "$WG_KEY" ] && [ ! -x "$WG_APPLY" ]; then
+    printf 'reprovision: WARNING — %s exists but %s is not executable.\n' "$WG_KEY" "$WG_APPLY" >&2
+fi
+
 cat <<'EOF'
 
 Done. The router is provisioned and reachable by key.
 
 Checks worth running by hand after any change to default-config.rsc:
 
-    ssh lab-router "/ip firewall filter print"    # management accept ABOVE the !LAN drop
+    ssh lab-router "/ip firewall filter print"    # management accept ABOVE the !LAN drop; WG 51820 present
     ssh lab-router "/ipv6 firewall filter print"  # four input rules ending in the !LAN drop
-    ssh lab-router "/ip firewall nat print"       # empty
+    ssh lab-router "/ip firewall nat print"       # masquerade out WAN
+    ssh lab-router "/ip dhcp-client print"        # ether5 bound when house uplink is cabled
+    ssh lab-router "/interface wireguard print"   # wg-lab after apply-wireguard.sh
 
 EOF
 

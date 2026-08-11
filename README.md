@@ -56,6 +56,30 @@ How the bring-up actually went, including the two things that would have cost
 an evening if hit blind, is logged in
 [docs/bring-up-notes.md](docs/bring-up-notes.md).
 
+## WireGuard + house uplink (item 2)
+
+Designed in [decisions/009](decisions/009-wireguard-endpoint-and-uplink.md).
+**Repo half is in; live apply is a Pi session.**
+
+| Piece | Where |
+|---|---|
+| ether5 house uplink, DHCP client, NAT masquerade, UDP/51820 accept | `provisioning/default-config.rsc` (survives wipe) |
+| `wg-lab` tunnel + San peer | `provisioning/apply-wireguard.sh` (keys on Pi only) |
+| Auto re-apply after wipe | `reprovision.sh` calls apply when `~/.config/netops-lab/wg-lab.private` exists |
+
+On `goguma`, once:
+
+```bash
+mkdir -p ~/.config/netops-lab && chmod 700 ~/.config/netops-lab
+# server private key → ~/.config/netops-lab/wg-lab.private  (mode 600)
+# laptop pubkey     → ~/.config/netops-lab/wg-client-san.public
+chmod +x ~/netops-lab/provisioning/apply-wireguard.sh
+# cable ether5 to the house LAN; reserve DHCP + forward UDP 51820 on the house router
+./provisioning/apply-wireguard.sh   # or full: ./provisioning/reprovision.sh
+```
+
+PC on the lab stays on **ether2–4** only. ether5 is WAN.
+
 ## Topology
 
 <p align="center">
@@ -95,9 +119,15 @@ real but unscheduled.
    hosted on the Pi, with the provisioning script arming the next cycle so
    wipes stay repeatable —
    [decisions/005](decisions/005-pi-as-ztp-host.md),
-   [decisions/006](decisions/006-management-surface-on-ether1.md)
-2. WireGuard endpoint (RouterOS 7 native — pays back every day this lab
-   isn't physically reachable)
+   [decisions/006](decisions/006-management-surface-on-ether1.md),
+   [decisions/008](decisions/008-unattended-wipe-cycle.md)
+2. **WireGuard endpoint + house uplink** — **designed and scripted, 2026-08-11;
+   hardware apply pending.** RouterOS-native `wg-lab` on the hEX, house uplink
+   on ether5, keys on the Pi only —
+   [decisions/009](decisions/009-wireguard-endpoint-and-uplink.md).
+   Secret-free half is in
+   [provisioning/default-config.rsc](provisioning/default-config.rsc);
+   tunnel is [provisioning/apply-wireguard.sh](provisioning/apply-wireguard.sh).
 3. FRR / OSPF-BGP on the Pi
 4. Netwatch-driven self-lockout experiment
 5. Remote syslog off-box (so router logs survive the router going unreachable)

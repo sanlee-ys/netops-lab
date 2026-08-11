@@ -23,7 +23,9 @@
 #
 # Topology this assumes:
 #   ether1        192.168.99.1/30   point-to-point management link to the Pi (.2)
-#   ether2-5      bridge, 192.168.88.1/24, DHCP server — lab-facing LAN, San's PC
+#   ether2-4      bridge, 192.168.88.1/24, DHCP server — lab-facing LAN, San's PC
+#   ether5        WAN uplink to the house LAN (DHCP client) — decisions/009
+#   wg-lab        WireGuard (keys applied post-provision from the Pi, not here)
 #
 # ---------------------------------------------------------------------------
 # Verification status — read before trusting any of this
@@ -80,7 +82,7 @@ add name=bridge comment="lab: lab-facing LAN"
 add bridge=bridge interface=ether2
 add bridge=bridge interface=ether3
 add bridge=bridge interface=ether4
-add bridge=bridge interface=ether5
+# ether5 is the house uplink (decisions/009) — not on the bridge.
 
 # --- Interface lists ---------------------------------------------------------
 # ether1 stays in WAN deliberately. The input drop below keys off !LAN, so WAN
@@ -88,6 +90,9 @@ add bridge=bridge interface=ether5
 # new connections from WAN, which stops the Pi routing through the router into
 # the lab LAN. Keeping it also preserves the deny-by-default framing that
 # decisions/005 chose so the lockout experiment has a real policy to attack.
+#
+# ether5 is also WAN: that is the real internet/house uplink (decisions/009).
+# WireGuard's wg-lab interface is added to LAN by apply-wireguard.sh, not here.
 
 /interface list
 add name=WAN
@@ -96,6 +101,7 @@ add name=LAN
 /interface list member
 add interface=bridge list=LAN
 add interface=ether1 list=WAN
+add interface=ether5 list=WAN
 
 # --- Addressing --------------------------------------------------------------
 # Static on both ends by necessity: the management accept rule names a source
@@ -109,6 +115,13 @@ add interface=ether1 list=WAN
 /ip address
 add address=192.168.99.1/30 interface=ether1 network=192.168.99.0
 add address=192.168.88.1/24 interface=bridge network=192.168.88.0
+
+# House uplink on ether5. Address comes from the house DHCP server. A static
+# reservation on the house router is strongly recommended so the WireGuard
+# port-forward target does not drift (decisions/009).
+/ip dhcp-client
+add interface=ether5 add-default-route=yes use-peer-dns=yes \
+    comment="lab: house uplink"
 
 /ip pool
 add name=default-dhcp ranges=192.168.88.10-192.168.88.254
@@ -141,6 +154,8 @@ add action=accept chain=input dst-address=127.0.0.1 \
 add action=accept chain=input in-interface=ether1 src-address=192.168.99.2 \
     protocol=tcp dst-port=22 \
     comment="lab: Pi management, SSH only — the surface item 4 attacks"
+add action=accept chain=input in-interface-list=WAN protocol=udp dst-port=51820 \
+    comment="lab: WireGuard listen (decisions/009) — house path only"
 add action=drop chain=input in-interface-list=!LAN \
     comment="drop all not coming from LAN"
 
@@ -197,9 +212,14 @@ add action=drop chain=input in-interface-list=!LAN \
     comment="drop everything else not coming from LAN"
 
 # --- NAT ---------------------------------------------------------------------
-# Stock masquerades out the WAN list. Omitted on purpose: with ether1 as the Pi
-# link and no upstream attached, that rule would only ever NAT router-to-Pi
-# traffic. It returns with the real uplink in roadmap item 2. See decisions/006.
+# Masquerade out the WAN list. ether5 is the real uplink; ether1 stays WAN for
+# forward-policy framing only (decisions/006, decisions/009). Lab LAN clients
+# reach the house through this rule. The forward drop for new WAN connections
+# still stops the Pi on ether1 from routing into the lab LAN.
+
+/ip firewall nat
+add chain=srcnat out-interface-list=WAN action=masquerade \
+    comment="lab: NAT lab clients out the house uplink"
 
 # --- Out-of-band: MAC server stays LAN-only ----------------------------------
 # Deliberate, and the single most load-bearing line in this file for item 4.
