@@ -39,6 +39,32 @@ needs an **elevated** shell.
 
 ---
 
+## Quick checklist — WireGuard won't handshake
+
+1. Is ether5 **link-ok** and dhcp-client **bound**?
+   `ssh lab-router "/interface ethernet monitor ether5 once"` and
+   `"/ip dhcp-client print"`. `stopped` / `no-link` is cabling, not keys.
+2. Does the PC reach the house-side address?
+   `ping 192.168.1.164` (or whatever ether5 bound). No reply → same L2/L3
+   path problem; fix before debugging crypto.
+3. Is UDP/51820 accepted **above** the `!LAN` drop?
+   `ssh lab-router "/ip firewall filter print"`. Missing accept → packets
+   never become a handshake. Stats on that rule rising with still-zero
+   handshake ⇒ keys, not firewall.
+4. Do client private and router peer public match?
+   On Windows: `Get-Content client.private -Raw | & "C:\Program Files\WireGuard\wg.exe" pubkey`
+   On router: `peers print proplist=interface,public-key,allowed-address`.
+   Mismatch was the long failure mode on 2026-08-11 — see
+   [WireGuard bring-up](#2026-08-11--wireguard-endpoint-live-house-uplink-on-ether5).
+5. Testing from house wifi with the **public** IP as Endpoint? Many VZ
+   routers lack hairpin NAT. Use `Endpoint = <ether5-ip>:51820` at home;
+   use the public IP only from cellular / off-site.
+6. Never paste `private-key=` or `client.private` into chat. Use
+   `print proplist=name,public-key,listen-port` so RouterOS does not dump
+   the server private key.
+
+---
+
 ## Quick checklist — Netinstall starts but the board never appears
 
 1. Is the board actually armed? `ssh lab-router "/system routerboard settings
@@ -50,6 +76,159 @@ needs an **elevated** shell.
    [reprovision.sh](../provisioning/reprovision.sh).
 3. Armed and still nothing? Check the link is `UP` and that `-i` names the lab
    interface — see [the lab-link checklist](#quick-checklist--lab-link-wont-come-up).
+
+---
+
+## 2026-08-11 — WireGuard endpoint live (house uplink on ether5)
+
+Roadmap item 2. Design is [decisions/009](../decisions/009-wireguard-endpoint-and-uplink.md).
+Scripts: `provisioning/default-config.rsc` (secret-free half),
+`provisioning/apply-wireguard.sh` (keys on the Pi).
+
+### Where the hardware lives now
+
+The Pi (`goguma`) and hEX moved next to the house/VZ router. The PC stays in
+another room on house wifi only — **no** long Ethernet back to the desk.
+
+| Cable | Ends |
+|---|---|
+| Short | Pi ↔ hEX **ether1** (management / Netinstall) |
+| Short | hEX **ether5** ↔ house/VZ **LAN** port (not WAN) |
+| None | PC ↔ hEX |
+
+Control path from the desk:
+
+```text
+PC (wifi) → ssh sanlee@goguma → ssh lab-router (192.168.99.1 via ether1)
+```
+
+Username on the Pi is **`sanlee`**, not `sanle`. Password/SSH failures that
+look like "wrong password" were wrong user on first contact from the PC.
+
+### Verified working state (2026-08-11 evening)
+
+| Check | Result |
+|---|---|
+| ether5 | `link-ok`, 1 Gbps |
+| dhcp-client on ether5 | **bound** `192.168.1.164/24` (reserve this on VZ) |
+| NAT masquerade out WAN | present |
+| `wg-lab` | running, listen **51820**, tunnel **10.99.0.1/24** |
+| Peer | client `10.99.0.2/32`, pubkey must match PC `client.private` |
+| From PC with WG Active, Endpoint `192.168.1.164:51820` | `ping 10.99.0.1` and `ping 192.168.88.1` both reply |
+
+Server public key at verification (safe to store in client config):
+
+```text
+X5T3YGWYErmWi1kF8bSG4WsqYgi/QTYkJSphESoEU0E=
+```
+
+If `wg-lab.private` on the Pi is ever regenerated, this public key changes —
+always re-read with:
+
+```bash
+ssh lab-router '/interface wireguard print proplist=name,public-key,listen-port'
+```
+
+### Key material (never in git)
+
+On **goguma**:
+
+```text
+~/.config/netops-lab/wg-lab.private        # server private, mode 600, ~44 chars + newline
+~/.config/netops-lab/wg-client-san.public  # laptop public, must match client.private
+```
+
+On **PC** (example path used in bring-up):
+
+```text
+C:\Users\sanle\client.private             # laptop private — backup offline, not git
+```
+
+`wg-lab.private` that is ~23 bytes is truncated and will fail with
+`invalid private key` on apply. Re-export a full key from a temporary
+RouterOS interface if that happens.
+
+Apply / refresh tunnel after keys exist:
+
+```bash
+# on goguma
+cd ~/netops-lab
+./provisioning/apply-wireguard.sh
+```
+
+`reprovision.sh` calls the same script when `wg-lab.private` exists.
+
+### Windows client (WireGuard app)
+
+Install from https://www.wireguard.com/install/ — the GUI does not put `wg`
+on PATH by default. Pubkey check in PowerShell:
+
+```powershell
+Get-Content C:\Users\sanle\client.private -Raw | & "C:\Program Files\WireGuard\wg.exe" pubkey
+```
+
+Home-LAN test tunnel (hairpin-safe):
+
+```ini
+[Interface]
+PrivateKey = <client.private one line>
+Address = 10.99.0.2/32
+
+[Peer]
+PublicKey = <wg-lab public-key from proplist print>
+Endpoint = 192.168.1.164:51820
+AllowedIPs = 10.99.0.0/24, 192.168.88.0/24, 192.168.99.0/30
+PersistentKeepalive = 25
+```
+
+Off-site: set `Endpoint` to the house public **IPv4** (not IPv6 from
+ifconfig.me, not the URL `https://ifconfig.me`) and forward **UDP 51820 →
+192.168.1.164** on the VZ router. Confirm public IPv4 via
+https://ipv4.icanhazip.com .
+
+### Failure modes that burned time
+
+**1. Peer public key ≠ `wg pubkey` of `client.private`.**
+Symptoms: firewall WG accept counters climb (packets arrive), peer
+`endpoint-port` stays 0, tunnel pings fail. Cause: laptop private key file
+and `wg-client-san.public` / router peer drifted across regenerations.
+Fix: derive pubkey from the PC file, scp to
+`~/.config/netops-lab/wg-client-san.public`, re-run `apply-wireguard.sh`,
+confirm `peers print proplist=...` matches, then Activate.
+
+**2. ether5 `no-link` / dhcp `stopped`.**
+Not a RouterOS bug — wrong port, bad cable, or not on a house LAN port.
+ether1 stays Pi; only ether5 goes to VZ LAN.
+
+**3. `Endpoint = https://ifconfig.me:51820`.**
+That hostname is a lookup site, not an endpoint. Use dotted IPv4 or the
+house LAN address of ether5.
+
+**4. Public IPv6 as Endpoint while port-forward is IPv4.**
+ifconfig.me can show IPv6 first; WG + VZ forward here are IPv4.
+
+**5. Assuming missing 51820 accept when `print where dst-port=51820` looks empty.**
+Live filter can still carry the default-config rule
+(`in-interface-list=WAN`, comment mentions WireGuard). Read full
+`/ip firewall filter print` and check order vs the `!LAN` drop. Duplicate
+accepts added below the drop do nothing useful.
+
+**6. Pasting multi-line SSH commands that break RouterOS quotes.**
+Keep `/ip firewall filter add ...` on one physical line, or use a
+`/system script` wrapper.
+
+**7. Chat / logs and private keys.**
+`/interface wireguard print detail` prints **private-key=**. Prefer
+`proplist=name,public-key,listen-port`. If a private key hits a log, rotate
+server and/or client keys.
+
+### Still open after this session
+
+- VZ DHCP reservation + UDP 51820 port-forward for off-site Endpoint (public
+  IPv4) — home-LAN path verified; internet path not fully closed in-session.
+- `apply-wireguard.sh` summary lines for server pubkey / ether5 lease were
+  empty under the old `get` parsing; prefer RouterOS `:put [/interface
+  wireguard get ... public-key]` style when fixing the script.
 
 ---
 

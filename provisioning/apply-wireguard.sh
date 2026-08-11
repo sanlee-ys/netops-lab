@@ -86,8 +86,9 @@ fi
 ssh_r "/interface wireguard peers remove [find interface=\"$WG_IF\"]" 2>/dev/null || true
 ssh_r "/interface wireguard peers add interface=\"$WG_IF\" public-key=\"$CLIENT_PUBLIC\" allowed-address=$PEER_ADDR comment=\"lab: San client\""
 
-PUB="$(ssh_r "/interface wireguard get [find name=\"$WG_IF\"] public-key")"
-WAN_IP="$(ssh_r "/ip dhcp-client get [find interface=ether5] address" 2>/dev/null || true)"
+# RouterOS "get prop" via SSH often returns empty; :put is reliable (measured 2026-08-11).
+PUB="$(ssh_r ":put [/interface wireguard get [find name=\"$WG_IF\"] public-key]" | tr -d '\r')"
+WAN_IP="$(ssh_r ":put [/ip dhcp-client get [find interface=ether5] address]" 2>/dev/null | tr -d '\r' || true)"
 
 cat <<EOF
 
