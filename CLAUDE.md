@@ -63,6 +63,12 @@ the split is recorded here rather than re-derived every session:
   prefer the seam, not a reason it's load-bearing. If it ever gets in the way,
   it's re-decidable on convenience alone.
 
+- **Files flow PC→Pi by `git pull`, not `scp`.** Pulling over https needs no
+  credentials and doesn't touch the push boundary. Copying files onto the Pi by
+  hand leaves its working tree ahead of its git HEAD, and from then on the Pi's
+  `git status` reports already-merged work as uncommitted. On 2026-09-04 that
+  gap stood at 11 commits and cost a session to unwind.
+
 `herdr` on the Pi is used for session persistence and interactive work, and can
 be driven from outside — `agent prompt` works, contrary to what this file said
 earlier. The one standing caution is that its awareness signal is screen-scraped

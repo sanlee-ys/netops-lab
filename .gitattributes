@@ -6,3 +6,8 @@
 
 # Same reasoning: this runs on the Pi under bash. CRLF would break the shebang.
 *.sh text eol=lf
+
+# Markdown is edited on both machines. The PC's autocrlf checked it out as CRLF
+# and a copy to the Pi carried that across, making every line of every touched
+# ADR show as changed. Pin to LF so the diff only ever shows real edits.
+*.md text eol=lf
