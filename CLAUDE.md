@@ -71,7 +71,11 @@ the split is recorded here rather than re-derived every session:
 
 `herdr` on the Pi is used for session persistence and interactive work, and can
 be driven from outside — `agent prompt` works, contrary to what this file said
-earlier. The one standing caution is that its awareness signal is screen-scraped
+earlier, with one caveat verified 2026-09-04 on Claude Code 2.1.261: a prompt
+long enough to wrap in the input box is typed but not submitted, and herdr
+reports `agent_prompt_stalled` rather than success. Keep prompts to one line, or
+follow with `agent send-keys <name> Enter`. The one standing caution is that its
+awareness signal is screen-scraped
 from Claude Code's UI, so read it freely and never gate anything irreversible on
 it: when it drifts it reports a confident wrong `idle` rather than erroring. The
 lab's own decision is [decisions/007](decisions/007-herdr-as-agent-workspace.md);
