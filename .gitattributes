@@ -7,6 +7,10 @@
 # Same reasoning: this runs on the Pi under bash. CRLF would break the shebang.
 *.sh text eol=lf
 
+# The FRR files go to /etc/frr on the Pi. The init script sources frr/daemons
+# as shell, so CRLF would break it. Pin to LF.
+frr/* text eol=lf
+
 # Markdown is edited on both machines. The PC's autocrlf checked it out as CRLF
 # and a copy to the Pi carried that across, making every line of every touched
 # ADR show as changed. Pin to LF so the diff only ever shows real edits.

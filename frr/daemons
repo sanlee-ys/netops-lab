@@ -1,0 +1,42 @@
+# netops-lab: /etc/frr/daemons for goguma (the Pi). See decisions/010.
+#
+# provisioning/frr-install.sh copies this file to /etc/frr/daemons.
+# Do not edit the copy on the Pi. Edit this file, pull, and run the script again.
+#
+# The watchfrr, zebra, and staticd daemons always start. On FRR 9 and later,
+# mgmtd also always starts. This file only selects the routing daemons.
+
+bgpd=yes
+ospfd=yes
+ospf6d=no
+ripd=no
+ripngd=no
+isisd=no
+pimd=no
+pim6d=no
+ldpd=no
+nhrpd=no
+eigrpd=no
+babeld=no
+sharpd=no
+pbrd=no
+bfdd=no
+fabricd=no
+vrrpd=no
+pathd=no
+
+vtysh_enable=yes
+
+# "-A 127.0.0.1" keeps each daemon's telnet VTY on loopback only. The Pi is
+# dual-homed onto the house network, so a VTY on all addresses is a
+# management surface on wlan0.
+zebra_options="  -A 127.0.0.1 -s 90000000"
+mgmtd_options="  -A 127.0.0.1"
+staticd_options="-A 127.0.0.1"
+ospfd_options="  -A 127.0.0.1"
+
+# "-p 0" stops bgpd from listening on TCP 179. The Pi always opens the BGP
+# session to the router, and the router only listens (connect=no in
+# provisioning/frr-router.rsc). So the Pi has no BGP listener on wlan0 or on
+# any other address.
+bgpd_options="   -A 127.0.0.1 -p 0"

@@ -14,6 +14,7 @@ the decision, and the consequences — including trade-offs accepted.
 | [007](007-herdr-as-agent-workspace.md) | Herdr is the agent workspace on the Pi — for persistence, not for driving | Accepted |
 | [008](008-unattended-wipe-cycle.md) | The wipe cycle runs unattended — one command, no physical action | Accepted |
 | [009](009-wireguard-endpoint-and-uplink.md) | WireGuard endpoint on the hEX, house uplink on ether5 | Accepted |
+| [010](010-frr-on-the-pi.md) | FRR on the Pi, with OSPF for the link, eBGP for a service prefix, and no default route | Proposed |
 
 ## Format
 
