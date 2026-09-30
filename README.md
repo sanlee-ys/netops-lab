@@ -115,7 +115,9 @@ The field record is [docs/bring-up-notes.md](docs/bring-up-notes.md).
 2. ~~**WireGuard endpoint + house uplink.**~~ Live 2026-08-11.
    [decisions/009](decisions/009-wireguard-endpoint-and-uplink.md).
    Off-site Endpoint (VZ port-forward + public IPv4) still to confirm.
-3. FRR / OSPF-BGP on the Pi
+3. **FRR / OSPF-BGP on the Pi.** Configs and run sheet ready 2026-09-30,
+   apply pending. [decisions/010](decisions/010-frr-on-the-pi.md),
+   [docs/frr-bringup.md](docs/frr-bringup.md).
 4. Netwatch-driven self-lockout experiment
 5. Remote syslog off-box (so router logs survive the router going unreachable)
 

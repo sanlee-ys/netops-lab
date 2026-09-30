@@ -1,4 +1,4 @@
-# netops-lab — the hEX side of OSPF and eBGP with FRR on the Pi. decisions/010.
+# netops-lab: the hEX side of OSPF and eBGP with FRR on the Pi. decisions/010.
 #
 # NOT YET APPLIED TO HARDWARE (2026-09-30). Syntax is RouterOS v7, checked
 # against the MikroTik manual for 7.20 (explicit /routing bgp instance). The

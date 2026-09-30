@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# netops-lab — check FRR on goguma: OSPF, eBGP, and the route guard.
+# netops-lab: check FRR on goguma: OSPF, eBGP, and the route guard.
 #
 # Run on the Pi, after provisioning/frr-install.sh and provisioning/frr-router.rsc:
 #

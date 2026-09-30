@@ -1,4 +1,4 @@
-# netops-lab — /etc/frr/daemons for goguma (the Pi). See decisions/010.
+# netops-lab: /etc/frr/daemons for goguma (the Pi). See decisions/010.
 #
 # provisioning/frr-install.sh copies this file to /etc/frr/daemons.
 # Do not edit the copy on the Pi. Edit this file, pull, and run the script again.

@@ -1,4 +1,4 @@
-# netops-lab — remove the hEX side of OSPF and eBGP. decisions/010.
+# netops-lab: remove the hEX side of OSPF and eBGP. decisions/010.
 #
 # NOT YET APPLIED TO HARDWARE (2026-09-30). Rollback step in docs/frr-bringup.md.
 #

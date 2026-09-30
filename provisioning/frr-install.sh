@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# netops-lab — install FRR on goguma and put the lab OSPF/eBGP config in place.
+# netops-lab: install FRR on goguma and put the lab OSPF/eBGP config in place.
 #
 # Run on the Pi, from the repo, AFTER provisioning/frr-router.rsc is on the hEX:
 #
